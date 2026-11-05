@@ -266,7 +266,7 @@ var DATA_URL='dados.enc.json';
 var LS_PASS='mandalog-painel-senha-v1';
 var MIN=60000,DAY=86400000,SP_OFFSET=3*3600*1000;
 var TIPOS=['Truck','Carreta','Médio','VUC','Van','Fiorino'];
-var OPS=['Café Sumaré','Café GRU','Café ITA'];
+var OPS=['Café Sumaré','Café GRU','Café SJC'];
 var METAS={prazo:0.90,vinc:1.00}; /* metas sugeridas: ajuste aqui */
 var VINCTXT={SEM_MOTORISTA:'falta motorista',SEM_PLACA:'falta placa',SEM_MOTORISTA_E_PLACA:'falta motorista e placa',VINCULADO:'vinculado',EM_ROTA:'rota iniciada'};
 var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
@@ -293,7 +293,7 @@ function tipoNorm(t){var n=norm(t);if(!n)return '–';
   if(n.indexOf('carreta')>=0)return 'Carreta';if(n.indexOf('truck')>=0)return 'Truck';if(/\bvuc\b/.test(n))return 'VUC';
   if(n.indexOf('medio')>=0)return 'Médio';if(n.indexOf('fiorino')>=0)return 'Fiorino';if(n.indexOf('van')>=0)return 'Van';return 'Outro';}
 function opNorm(org,plano){var t=norm(org)+' '+norm(plano);
-  if(/sumar|campinas/.test(t))return OPS[0];if(/\bgru\b|guarulhos/.test(t))return OPS[1];if(/\bita\b|itapevi|itaquaquecetuba/.test(t))return OPS[2];return 'Sem operação';}
+  if(/sumar|campinas/.test(t))return OPS[0];if(/\bgru\b|guarulhos/.test(t))return OPS[1];if(/\bsjc\b|sao jose dos campos/.test(t))return OPS[2];return 'Sem operação';}
 
 /* ---------- criptografia (mesmo formato do robô: PBKDF2-SHA256 + AES-256-GCM) ---------- */
 function b64(s){var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
@@ -345,8 +345,8 @@ function demoRotas(){
     R(2,'4402','Café Sumaré','','M. Souza','SEM_PLACA','Van',t(23,55)),
     R(3,'4403','Café GRU','QWE4R56','R. Lima','EM_ROTA','Carreta',t(17,10),t(17,5),t(17,22)),
     R(4,'4404','Café GRU','RTY7U89','A. Costa','EM_ROTA','Médio',t(16,30),t(16,40),t(17,25)),
-    R(5,'4405','Café ITA','','','SEM_MOTORISTA_E_PLACA','VUC',t(0,5)),
-    R(6,'4406','Café ITA','UIO2P34','P. Alves','VINCULADO','Fiorino',t(23,58)),
+    R(5,'4405','Café SJC','','','SEM_MOTORISTA_E_PLACA','VUC',t(0,5)),
+    R(6,'4406','Café SJC','UIO2P34','P. Alves','VINCULADO','Fiorino',t(23,58)),
     R(7,'4407','Café Sumaré','ASD5F67','L. Rocha','EM_ROTA','Truck',t(16,0),t(16,2),t(16,8))]};
 }
 
