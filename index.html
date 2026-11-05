@@ -171,10 +171,10 @@ function render(){
     '<section class="card"><h2>Identificação</h2><p class="hint">Quem está lançando. Fica salvo neste navegador.</p><div class="grid">'+
       '<label>Seu nome<input id="pQuem" maxlength="40" autocomplete="off" value="'+esc(S.prog.quem)+'"></label>'+
       '<label>Senha de programação<input id="pSenha" type="password" autocomplete="off" value="'+esc(S.prog.senha)+'"></label></div></section>'+
-    '<section class="card"><h2>Lançar plano</h2><p class="hint">Informe o número do plano (código da rota no GM7, 10 dígitos), o motorista e a placa. O robô vincula na rota do GM7Driver e nunca sobrescreve o que já está vinculado.</p>'+
+    '<section class="card"><h2>Lançar plano</h2><p class="hint">Informe o número do plano (código da rota no GM7, 10 dígitos), a placa e o motorista (nome e sobrenome). O robô acha a placa no GM7, confere o motorista (sem exigir o nome idêntico) e vincula na rota, sem nunca sobrescrever o que já está vinculado.</p>'+
       '<form id="lancarForm"><div class="grid">'+
       '<label>Nº do plano<input id="pPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
-      '<label>Motorista<input id="pMot" placeholder="nome como está no GM7" maxlength="80" required></label>'+
+      '<label>Motorista<input id="pMot" placeholder="nome e sobrenome" maxlength="80" required></label>'+
       '<label>Placa<input id="pPlaca" class="mono" placeholder="ABC1D23" maxlength="8" required></label>'+
       '<div><button class="btn" type="submit"'+off+'>Lançar e vincular</button></div></div></form>'+
       '<div class="sep"></div>'+
