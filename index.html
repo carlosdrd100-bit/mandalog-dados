@@ -63,6 +63,9 @@ input.mono{font-family:var(--f-mono)}
 .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
 .msg.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
 .sep{height:1px;background:var(--line);margin:16px 0}
+.sel{font:inherit;font-size:16px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0;width:100%}
+input[type=date]{color-scheme:light dark}
+.ops{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 
 .list{display:flex;flex-direction:column}
 .row{display:grid;grid-template-columns:minmax(110px,auto) 1fr auto;gap:4px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
@@ -95,7 +98,11 @@ var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
 var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1';
 var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô']};
 
-var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,busy:false,prog:progGet(),poll:null};
+var PERFIS=['FIORINO','HR','VUC','3/4','TOCO','TRUCK','CARRETA','TRUCK LONG'];
+var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada'};
+var ABA_NOME={SUMARE:'Café Sumaré',GRU:'Café GRU',SJC:'Café SJC'};
+function hojeISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,msg2:'',msg2Ok:false,rdata:hojeISO(),rperfil:'',busy:false,prog:progGet(),poll:null};
 var root=document.getElementById('root');
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -127,18 +134,21 @@ function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){
 
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
-  if(!S.prog.quem||!S.prog.senha){S.msg='Informe seu nome e a senha de programação.';S.msgOk=false;render();return;}
+  var K=(tipo==='roteirizar'||tipo==='impactar')?'msg2':'msg';
+  function dize(t,ok){S[K]=t;S[K+'Ok']=ok;if(K==='msg2')S.msgOk=S.msgOk;}
+  if(!S.prog.quem||!S.prog.senha){dize('Informe seu nome e a senha de programação.',false);render();return;}
   var id=novoId(),body=Object.assign({tipo:tipo,id:id,senha:S.prog.senha,quem:S.prog.quem},d);
-  S.busy=true;S.msg='Enviando…';S.msgOk=false;render();
+  S.msg='';S.msg2='';
+  S.busy=true;dize('Enviando…',false);render();
   fetch(WORKER_URL.replace(/\/$/,'')+'/acao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
     .then(function(x){
       S.busy=false;
-      if(x.j&&x.j.ok){S.enviados.unshift({id:id,tipo:tipo,plano:d.plano});S.msg='Pedido enviado. O resultado aparece em "Andamento" em instantes.';S.msgOk=true;S.limpar=limpar;
+      if(x.j&&x.j.ok){S.enviados.unshift({id:id,tipo:tipo,plano:d.plano});dize('Pedido enviado. O resultado aparece em "Andamento" em instantes.',true);S.limpar=limpar;
         [15000,35000,70000].forEach(function(t){setTimeout(carrega,t);});}
-      else{S.msg='Não enviado: '+((x.j&&x.j.erro)||('HTTP '+x.s));S.msgOk=false;}
+      else{dize('Não enviado: '+((x.j&&x.j.erro)||('HTTP '+x.s)),false);}
       render();})
-    .catch(function(){S.busy=false;S.msg='Não consegui falar com o endpoint.';S.msgOk=false;render();});
+    .catch(function(){S.busy=false;dize('Não consegui falar com o endpoint.',false);render();});
 }
 
 /* ---------- telas ---------- */
@@ -154,11 +164,12 @@ function andamento(){
   if(!lista.length)return h+'<div class="empty">Nenhum lançamento ainda.</div></section>';
   return h+'<div class="list">'+lista.map(function(a){
     var st=STATUS[a.status]||['pend',a.status||'–'];
-    return '<div class="row"><span class="pl">'+esc(a.plano)+'</span><span class="w"><b>'+(a.tipo==='iniciar'?'Iniciar rota':'Vincular')+'</b> · '+esc(a.motivo||'')+(a.quem?' · '+esc(a.quem):'')+(a.quando?' · '+esc(String(a.quando).slice(8,10)+'/'+String(a.quando).slice(5,7)+' '+String(a.quando).slice(11,16)):'')+'</span><span class="badge '+st[0]+'">'+esc(st[1])+'</span></div>';}).join('')+'</div></section>';
+    return '<div class="row"><span class="pl">'+esc(a.plano)+'</span><span class="w"><b>'+esc(NOMES_TIPO[a.tipo]||a.tipo)+'</b> · '+esc(a.motivo||'')+(a.quem?' · '+esc(a.quem):'')+(a.quando?' · '+esc(String(a.quando).slice(8,10)+'/'+String(a.quando).slice(5,7)+' '+String(a.quando).slice(11,16)):'')+'</span><span class="badge '+st[0]+'">'+esc(st[1])+'</span></div>';}).join('')+'</div></section>';
 }
 function render(){
   var foco=document.activeElement&&document.activeElement.id,keep={};
-  ['pPlano','pMot','pPlaca','sPlano','pQuem','pSenha','pw'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  if(keep.rData)S.rdata=keep.rData;if(keep.rPerfil!==undefined)S.rperfil=keep.rPerfil;
   if(S.view==='gate'){
     root.innerHTML=header()+'<section class="card gate"><h2>Entrar</h2><p class="hint">Digite a senha do painel para ver o andamento dos pedidos.</p>'+
       '<form id="gateForm"><label>Senha<input id="pw" type="password" autocomplete="current-password" autofocus></label>'+
@@ -183,10 +194,21 @@ function render(){
       '<label>Nº do plano<input id="sPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
       '<div><button class="btn ghost" type="submit"'+off+'>▶ Iniciar rota</button></div></div></form>'+
       (S.msg?'<p class="msg'+(S.msgOk?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg)+'</p>':'')+'</section>'+
+    '<section class="card"><h2>Roteirização</h2><p class="hint">Traz do GM7 os clientes, notas e cidades do plano e inclui na planilha de roteirização, na aba da operação que você escolher. O motorista e a placa vêm do GM7. Plano e nota que já estão na aba não são repetidos.</p>'+
+      '<form id="roteForm"><div class="grid">'+
+      '<label>Nº do plano<input id="rPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
+      '<label>Data do lançamento<input id="rData" type="date" value="'+esc(S.rdata)+'" required></label>'+
+      '<label>Perfil do veículo<select id="rPerfil" class="sel" required><option value="">Escolha…</option>'+PERFIS.map(function(x){return '<option'+(S.rperfil===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label></div>'+
+      '<div class="ops"><button class="btn" type="submit" data-aba="SUMARE"'+off+'>Café Sumaré</button><button class="btn" type="submit" data-aba="GRU"'+off+'>Café GRU</button><button class="btn" type="submit" data-aba="SJC"'+off+'>Café SJC</button></div></form>'+
+      '<div class="sep"></div>'+
+      '<h2 style="font-size:20px">Rota impactada</h2><p class="hint">O cliente cancelou o plano? Muda a coluna de emissão das linhas desse plano para NÃO EMITIR, em todas as abas. Não apaga nada.</p>'+
+      '<form id="impForm"><div class="grid"><label>Nº do plano<input id="iPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
+      '<div><button class="btn ghost" type="submit"'+off+'>Marcar NÃO EMITIR</button></div></div></form>'+
+      (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
     andamento()+
     '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>';
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
-  if(S.limpar){['pPlano','pMot','pPlaca','sPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
+  if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
   if(foco){var f=document.getElementById(foco);if(f&&f.focus)f.focus();}
 }
 
@@ -203,6 +225,21 @@ root.addEventListener('submit',function(ev){
     if(mot.length<3){S.msg='Informe o motorista.';S.msgOk=false;render();return;}
     if(!/^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/.test(placa)){S.msg='Placa inválida (ex.: ABC1D23).';S.msgOk=false;render();return;}
     enviar('vincular',{plano:plano,motorista:mot,placa:placa},true);return;}
+  if(id==='roteForm'){
+    var aba=ev.submitter&&ev.submitter.getAttribute('data-aba');
+    var p3=document.getElementById('rPlano').value.trim(),dt=document.getElementById('rData').value,pf=document.getElementById('rPerfil').value;
+    if(!aba){S.msg2='Escolha a operação pelos botões Café Sumaré, Café GRU ou Café SJC.';S.msg2Ok=false;render();return;}
+    if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(p3)){S.msg2='Número do plano inválido.';S.msg2Ok=false;render();return;}
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dt)){S.msg2='Escolha a data do lançamento.';S.msg2Ok=false;render();return;}
+    if(PERFIS.indexOf(pf)<0){S.msg2='Escolha o perfil do veículo.';S.msg2Ok=false;render();return;}
+    S.rdata=dt;S.rperfil=pf;
+    if(!confirm('Incluir o plano '+p3+' na aba '+ABA_NOME[aba]+' da planilha, com data '+dt.split('-').reverse().join('/')+' e perfil '+pf+'?'))return;
+    enviar('roteirizar',{plano:p3,aba:aba,data:dt,perfil:pf},true);return;}
+  if(id==='impForm'){
+    var p4=document.getElementById('iPlano').value.trim();
+    if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(p4)){S.msg2='Número do plano inválido.';S.msg2Ok=false;render();return;}
+    if(!confirm('Marcar NÃO EMITIR em todas as linhas do plano '+p4+' na planilha?\nNada é apagado, só a coluna de emissão muda.'))return;
+    enviar('impactar',{plano:p4},true);return;}
   if(id==='iniciarForm'){
     var p2=document.getElementById('sPlano').value.trim();
     if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(p2)){S.msg='Número do plano inválido.';S.msgOk=false;render();return;}
