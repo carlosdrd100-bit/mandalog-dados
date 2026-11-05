@@ -293,7 +293,7 @@ function tipoNorm(t){var n=norm(t);if(!n)return '–';
   if(n.indexOf('carreta')>=0)return 'Carreta';if(n.indexOf('truck')>=0)return 'Truck';if(/\bvuc\b/.test(n))return 'VUC';
   if(n.indexOf('medio')>=0)return 'Médio';if(n.indexOf('fiorino')>=0)return 'Fiorino';if(n.indexOf('van')>=0)return 'Van';return 'Outro';}
 function opNorm(org,plano){var t=norm(org)+' '+norm(plano);
-  if(/sumar/.test(t))return OPS[0];if(/\bgru\b|guarulhos/.test(t))return OPS[1];if(/\bita\b|itapevi|itaquaquecetuba/.test(t))return OPS[2];return 'Sem operação';}
+  if(/sumar|campinas/.test(t))return OPS[0];if(/\bgru\b|guarulhos/.test(t))return OPS[1];if(/\bita\b|itapevi|itaquaquecetuba/.test(t))return OPS[2];return 'Sem operação';}
 
 /* ---------- criptografia (mesmo formato do robô: PBKDF2-SHA256 + AES-256-GCM) ---------- */
 function b64(s){var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
