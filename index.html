@@ -87,6 +87,19 @@ input[type=date]{color-scheme:light dark}
 .modal-box .dado b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
 .modal-box .acoes{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .btn.perigo{background:var(--bad);border-color:var(--bad);color:#fff}
+.sla-banner{background:var(--bad);color:#fff;border-radius:12px;padding:14px 18px;font-weight:600;font-size:17px;border:2px solid #7d1313}
+.sla-banner small{display:block;font-weight:400;font-size:13px;opacity:.95;margin-top:2px}
+.sla-ok{background:var(--ok-bg);color:var(--ok);border-radius:12px;padding:12px 16px;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.kpi{border-radius:10px;padding:10px 12px;text-align:center;border:1px solid var(--line);background:var(--surface-2)}
+.kpi b{display:block;font-family:var(--f-display);font-size:38px;line-height:1}
+.kpi span{font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.kpi.k-est{background:var(--bad-bg);color:var(--bad)}.kpi.k-ale{background:var(--warn-bg);color:var(--warn)}.kpi.k-pra{background:var(--ok-bg);color:var(--ok)}
+.prow{display:grid;grid-template-columns:minmax(110px,auto) 1fr auto;gap:4px 12px;align-items:center;padding:9px 10px;border-top:1px solid var(--line);border-left:5px solid var(--line)}
+.prow.f-est{border-left-color:var(--bad);background:var(--bad-bg)}.prow.f-ale{border-left-color:var(--warn);background:var(--warn-bg)}.prow.f-pra{border-left-color:var(--ok)}
+.prow .h{font-family:var(--f-display);font-size:24px;font-weight:700;white-space:nowrap}
+.prow.f-est .h{color:var(--bad)}.prow.f-ale .h{color:var(--warn)}
+@media (max-width:520px){.prow{grid-template-columns:1fr auto}.prow .w{grid-column:1 / -1;order:3}.kpi b{font-size:30px}}
 footer{font-size:12px;color:var(--ink-2)}
 @media (max-width:520px){.hdr-t h1{font-size:28px}.row{grid-template-columns:1fr auto}.row .w{grid-column:1 / -1;order:3}}
 </style>
@@ -101,6 +114,7 @@ footer{font-size:12px;color:var(--ink-2)}
    e mostra o andamento deles. */
 var WORKER_URL='https://mandalog-painel.carlos-eduardo-c87.workers.dev';
 var RESULT_URL='acoes.enc.json';
+var PEND_URL='pendencias.enc.json';
 var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
 var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1', LS_TRAT='mandalog-conflitos-tratados-v1';
 var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô'],CONFLITO:['err','Conflito: aguarda sua decisão']};
@@ -154,7 +168,30 @@ function carrega(){
       lsSet(LS_PASS,'');S.pass='';S.view='gate';S.err='Senha incorreta.';render();});
   }).catch(function(){});
 }
-function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok')carrega();},20000);}
+/* rotas MANDALOG ainda nao finalizadas no GM7 (KPI de SLA: finalizar em ate 30 h) */
+function carregaPend(){
+  if(!S.pass)return;
+  fetch(PEND_URL+'?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.status===200?r.json():null;}).then(function(env){
+    if(!env){S.pend=null;render();return;}
+    return decrypt(env,S.pass).then(function(d){S.pend=d;render();},function(){});
+  }).catch(function(){});
+}
+function pendencias(){
+  var p=S.pend;
+  if(!p||!p.resumo)return '<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram e ainda não foram finalizadas no GM7. Aguardando a primeira leitura…</p></section>';
+  var r=p.resumo,lim=Math.round(p.limite_h||30),al=Math.round(p.alerta_h||20),h='';
+  if(r.estouradas>0)h+='<div class="sla-banner" role="alert">⚠ '+r.estouradas+' rota'+(r.estouradas>1?'s':'')+' MANDALOG sem finalizar há mais de '+lim+' h — SLA estourado<small>Finalize no GM7Driver agora. A cobrança é por e-mail, com cópia ao gestor.</small></div>';
+  else if(r.total===0)h+='<div class="sla-ok">✔ Nenhuma rota MANDALOG pendente de finalização.</div>';
+  h+='<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram e ainda não foram finalizadas no GM7. Meta: finalizar em até '+lim+' horas. Atualizado em '+esc(String(p.gerado||'').slice(8,10)+'/'+String(p.gerado||'').slice(5,7)+' '+String(p.gerado||'').slice(11,16))+'.</p>'+
+    '<div class="kpis"><div class="kpi k-est"><b>'+r.estouradas+'</b><span>Estouradas (≥ '+lim+' h)</span></div>'+
+    '<div class="kpi k-ale"><b>'+r.alerta+'</b><span>Em alerta (≥ '+al+' h)</span></div>'+
+    '<div class="kpi k-pra"><b>'+r.prazo+'</b><span>No prazo</span></div></div>';
+  if(!p.itens||!p.itens.length)return h+'</section>';
+  var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'};
+  return h+'<div class="list">'+p.itens.map(function(i){
+    return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'</span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · saiu '+esc(String(i.saida||'').slice(8,10)+'/'+String(i.saida||'').slice(5,7)+' '+String(i.saida||'').slice(11,16))+' · '+rot[i.faixa]+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
+}
+function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();}},20000);}
 
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
@@ -203,6 +240,7 @@ function render(){
   }
   var off=S.busy?' disabled':'';
   root.innerHTML=header('<button class="hbtn" data-act="sair">Sair</button>')+
+    pendencias()+
     '<section class="card"><h2>Identificação</h2><p class="hint">Quem está lançando. Fica salvo neste navegador.</p><div class="grid">'+
       '<label>Seu nome<input id="pQuem" maxlength="40" autocomplete="off" value="'+esc(S.prog.quem)+'"></label>'+
       '<label>Senha de programação<input id="pSenha" type="password" autocomplete="off" value="'+esc(S.prog.senha)+'"></label></div></section>'+
@@ -247,7 +285,7 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
     enviar('vincular',{plano:c.plano,motorista:c.motorista_pedido,placa:c.placa_pedida,sobrescrever:true},false);}});
 root.addEventListener('submit',function(ev){
   ev.preventDefault();var id=ev.target.id;
-  if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();agenda();return;}
+  if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();carregaPend();agenda();return;}
   guarda();
   if(id==='lancarForm'){
     var plano=document.getElementById('pPlano').value.trim(),mot=document.getElementById('pMot').value.trim(),placa=document.getElementById('pPlaca').value.trim().toUpperCase();
@@ -278,7 +316,7 @@ root.addEventListener('submit',function(ev){
 });
 
 S.pass=lsGet(LS_PASS);
-if(S.pass){S.view='ok';render();carrega();agenda();}else render();
+if(S.pass){S.view='ok';render();carrega();carregaPend();agenda();}else render();
 })();
 </script>
 </body>
