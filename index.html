@@ -80,6 +80,13 @@ input[type=date]{color-scheme:light dark}
 .badge.err{background:var(--bad-bg);color:var(--bad);border-color:transparent}
 .empty{padding:14px;border-radius:8px;background:var(--surface-2);color:var(--ink-2)}
 .gate{max-width:420px;margin:24px auto;width:100%}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(10,14,26,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:var(--surface);color:var(--ink);border:2px solid var(--bad);border-radius:14px;max-width:520px;width:100%;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.modal-box h2{font-family:var(--f-display);font-size:28px;color:var(--bad);margin-bottom:8px}
+.modal-box .dado{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:15px;overflow-wrap:anywhere}
+.modal-box .dado b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
+.modal-box .acoes{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.btn.perigo{background:var(--bad);border-color:var(--bad);color:#fff}
 footer{font-size:12px;color:var(--ink-2)}
 @media (max-width:520px){.hdr-t h1{font-size:28px}.row{grid-template-columns:1fr auto}.row .w{grid-column:1 / -1;order:3}}
 </style>
@@ -95,8 +102,8 @@ footer{font-size:12px;color:var(--ink-2)}
 var WORKER_URL='https://mandalog-painel.carlos-eduardo-c87.workers.dev';
 var RESULT_URL='acoes.enc.json';
 var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
-var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1';
-var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô']};
+var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1', LS_TRAT='mandalog-conflitos-tratados-v1';
+var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô'],CONFLITO:['err','Conflito: aguarda sua decisão']};
 
 var PERFIS=['FIORINO','HR','VUC','3/4','TOCO','TRUCK','CARRETA','TRUCK LONG'];
 var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada'};
@@ -110,6 +117,23 @@ function lsGet(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
 function lsSet(k,v){try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k);}catch(e){}}
 function progGet(){try{var v=JSON.parse(lsGet(LS_PROG)||'{}');return {quem:v.quem||'',senha:v.senha||''};}catch(e){return {quem:'',senha:''};}}
 function progSet(){lsSet(LS_PROG,JSON.stringify(S.prog));}
+/* conflitos ja decididos (sobrescrever / manter) neste navegador: o alerta nao volta a aparecer */
+function tratGet(){try{return JSON.parse(lsGet(LS_TRAT)||'[]');}catch(e){return [];}}
+function tratAdd(id){var t=tratGet();if(t.indexOf(id)<0)t.push(id);lsSet(LS_TRAT,JSON.stringify(t.slice(-60)));}
+function recente(q){var t=Date.parse(String(q||'').replace(' ','T'));return !isNaN(t)&&(Date.now()-t)<2*60*60*1000;}
+/* primeiro conflito recente e ainda nao decidido */
+function acharConflito(){var t=tratGet();for(var i=S.acoes.length-1;i>=0;i--){var a=S.acoes[i];
+  if(a.status==='CONFLITO'&&a.conflito&&t.indexOf(a.id)<0&&recente(a.quando)){return a;}}return null;}
+function modalConflito(){
+  var a=S.conflito;if(!a||!a.conflito)return '';var c=a.conflito;
+  return '<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="cfT"><div class="modal-box">'+
+    '<h2 id="cfT">⚠ Atenção: o plano já tem vínculo</h2>'+
+    '<p><b>Plano '+esc(c.plano)+'</b> está atrelado ao motorista <b>'+esc(c.motorista_atual)+'</b> e à placa <b>'+esc(c.placa_atual)+'</b>.</p>'+
+    '<div class="dado"><b>Você pediu</b>Motorista '+esc(c.motorista_pedido)+' · Placa '+esc(c.placa_pedida)+'</div>'+
+    '<p><b>Deseja sobrescrever e alterar?</b></p><p class="hint" style="margin:6px 0 0">Se sim, a placa e o motorista atuais saem da rota e entram os pedidos. Só vale para rota que ainda não foi iniciada.</p>'+
+    '<div class="acoes"><button class="btn" id="cfNao" data-act="manter">Não, manter como está</button>'+
+    '<button class="btn perigo" id="cfSim" data-act="sobrescrever"'+(S.busy?' disabled':'')+'>Sim, sobrescrever e alterar</button></div></div></div>';
+}
 function novoId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():(String(Date.now())+Math.random().toString(16).slice(2));}
 
 /* ---------- criptografia (mesmo formato do robo: PBKDF2-SHA256 + AES-256-GCM) ---------- */
@@ -126,7 +150,7 @@ function carrega(){
   if(!S.pass)return;
   fetch(RESULT_URL+'?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.status===200?r.json():null;}).then(function(env){
     if(!env){S.acoes=[];render();return;}
-    return decrypt(env,S.pass).then(function(d){S.acoes=(d&&d.resultados)||[];render();},function(){
+    return decrypt(env,S.pass).then(function(d){S.acoes=(d&&d.resultados)||[];S.conflito=acharConflito();render();},function(){
       lsSet(LS_PASS,'');S.pass='';S.view='gate';S.err='Senha incorreta.';render();});
   }).catch(function(){});
 }
@@ -182,7 +206,7 @@ function render(){
     '<section class="card"><h2>Identificação</h2><p class="hint">Quem está lançando. Fica salvo neste navegador.</p><div class="grid">'+
       '<label>Seu nome<input id="pQuem" maxlength="40" autocomplete="off" value="'+esc(S.prog.quem)+'"></label>'+
       '<label>Senha de programação<input id="pSenha" type="password" autocomplete="off" value="'+esc(S.prog.senha)+'"></label></div></section>'+
-    '<section class="card"><h2>Lançar plano</h2><p class="hint">Informe o número do plano (código da rota no GM7, 10 dígitos), a placa e o motorista (nome e sobrenome). O robô acha a placa no GM7, confere o motorista (sem exigir o nome idêntico) e vincula na rota, sem nunca sobrescrever o que já está vinculado.</p>'+
+    '<section class="card"><h2>Lançar plano</h2><p class="hint">Informe o número do plano (código da rota no GM7, 10 dígitos), a placa e o motorista (nome e sobrenome). O robô acha a placa no GM7, confere o motorista (sem exigir o nome idêntico) e vincula na rota. Se a rota já tiver motorista ou placa reais diferentes, aparece um alerta na tela perguntando se você quer sobrescrever.</p>'+
       '<form id="lancarForm"><div class="grid">'+
       '<label>Nº do plano<input id="pPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
       '<label>Motorista<input id="pMot" placeholder="nome e sobrenome" maxlength="80" required></label>'+
@@ -206,7 +230,7 @@ function render(){
       '<div><button class="btn ghost" type="submit"'+off+'>Marcar NÃO EMITIR</button></div></div></form>'+
       (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
     andamento()+
-    '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>';
+    '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>'+modalConflito();
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
   if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
   if(foco){var f=document.getElementById(foco);if(f&&f.focus)f.focus();}
@@ -214,7 +238,13 @@ function render(){
 
 /* ---------- eventos ---------- */
 function guarda(){var q=document.getElementById('pQuem'),s=document.getElementById('pSenha');if(q)S.prog.quem=q.value.trim();if(s)S.prog.senha=s.value;progSet();}
-root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(b&&b.getAttribute('data-act')==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.view='gate';S.err='';render();}});
+root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(!b)return;var ac=b.getAttribute('data-act');
+  if(ac==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
+  if(ac==='manter'&&S.conflito){tratAdd(S.conflito.id);S.conflito=null;S.msg='Mantido como estava. Nada foi alterado.';S.msgOk=true;render();return;}
+  if(ac==='sobrescrever'&&S.conflito&&S.conflito.conflito){var c=S.conflito.conflito;
+    if(!S.prog.quem||!S.prog.senha){S.conflito=null;S.msg='Informe seu nome e a senha de programação e envie de novo.';S.msgOk=false;render();return;}
+    tratAdd(S.conflito.id);S.conflito=null;
+    enviar('vincular',{plano:c.plano,motorista:c.motorista_pedido,placa:c.placa_pedida,sobrescrever:true},false);}});
 root.addEventListener('submit',function(ev){
   ev.preventDefault();var id=ev.target.id;
   if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();agenda();return;}
