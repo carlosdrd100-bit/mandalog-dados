@@ -99,6 +99,12 @@ input[type=date]{color-scheme:light dark}
 .prow.f-est{border-left-color:var(--bad);background:var(--bad-bg)}.prow.f-ale{border-left-color:var(--warn);background:var(--warn-bg)}.prow.f-pra{border-left-color:var(--ok)}
 .prow .h{font-family:var(--f-display);font-size:24px;font-weight:700;white-space:nowrap}
 .prow.f-est .h{color:var(--bad)}.prow.f-ale .h{color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:600;min-height:40px;display:inline-flex;gap:8px;align-items:center}
+.chip b{background:var(--surface-2);border-radius:999px;padding:1px 8px}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}.chip.on b{background:rgba(255,255,255,.2)}
+.chip.red:not(.on){border-color:var(--bad)}.chip .dot{font-size:11px;font-weight:700;color:var(--bad)}.chip.on .dot{color:#FFD0D0}
+.opx{font-family:var(--f-body);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
 @media (max-width:520px){.prow{grid-template-columns:1fr auto}.prow .w{grid-column:1 / -1;order:3}.kpi b{font-size:30px}}
 footer{font-size:12px;color:var(--ink-2)}
 @media (max-width:520px){.hdr-t h1{font-size:28px}.row{grid-template-columns:1fr auto}.row .w{grid-column:1 / -1;order:3}}
@@ -176,22 +182,30 @@ function carregaPend(){
     return decrypt(env,S.pass).then(function(d){S.pend=d;render();},function(){});
   }).catch(function(){});
 }
+var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU_SJC','Café GRU / SJC'],['SEM','Sem operação']];
+function contaPend(lista){var c={total:lista.length,estouradas:0,alerta:0,prazo:0};lista.forEach(function(i){if(i.faixa==='estourada')c.estouradas++;else if(i.faixa==='alerta')c.alerta++;else c.prazo++;});return c;}
 function pendencias(){
   var p=S.pend;
   if(!p||!p.resumo)return '<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram e ainda não foram finalizadas no GM7. Aguardando a primeira leitura…</p></section>';
-  var r=p.resumo,lim=Math.round(p.limite_h||30),al=Math.round(p.alerta_h||20),h='';
-  if(r.estouradas>0)h+='<div class="sla-banner" role="alert">⚠ '+r.estouradas+' rota'+(r.estouradas>1?'s':'')+' MANDALOG sem finalizar há mais de '+lim+' h — SLA estourado<small>Finalize no GM7Driver agora. A cobrança é por e-mail, com cópia ao gestor.</small></div>';
-  else if(r.total===0)h+='<div class="sla-ok">✔ Nenhuma rota MANDALOG pendente de finalização.</div>';
-  h+='<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram e ainda não foram finalizadas no GM7. Meta: finalizar em até '+lim+' horas. Atualizado em '+esc(String(p.gerado||'').slice(8,10)+'/'+String(p.gerado||'').slice(5,7)+' '+String(p.gerado||'').slice(11,16))+'.</p>'+
+  var lim=Math.round(p.limite_h||30),al=Math.round(p.alerta_h||20),h='';
+  var todos=p.itens||[],op=S.opf||'TODAS';
+  var itens=op==='TODAS'?todos:todos.filter(function(i){return (i.operacao||'SEM')===op;});
+  var r=contaPend(itens),R=contaPend(todos);
+  if(R.estouradas>0)h+='<div class="sla-banner" role="alert">⚠ '+R.estouradas+' rota'+(R.estouradas>1?'s':'')+' MANDALOG sem finalizar há mais de '+lim+' h — SLA estourado<small>Finalize no GM7Driver agora. A cobrança é por e-mail, com cópia ao gestor.</small></div>';
+  else if(R.total===0)h+='<div class="sla-ok">✔ Nenhuma rota MANDALOG pendente de finalização.</div>';
+  var g=String(p.gerado||'');
+  h+='<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram de ontem em diante e ainda não foram finalizadas no GM7. Meta: finalizar em até '+lim+' horas. Atualizado em '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'.</p>'+
+    '<div class="chips" role="tablist">'+OPS.map(function(o){var c=o[0]==='TODAS'?R:contaPend(todos.filter(function(i){return (i.operacao||'SEM')===o[0];}));
+      if(o[0]==='SEM'&&!c.total)return '';
+      return '<button type="button" class="chip'+(op===o[0]?' on':'')+(c.estouradas?' red':'')+'" data-act="fop" data-op="'+o[0]+'" role="tab" aria-selected="'+(op===o[0])+'">'+o[1]+' <b>'+c.total+'</b>'+(c.estouradas?'<span class="dot">'+c.estouradas+' estour.</span>':'')+'</button>';}).join('')+'</div>'+
     '<div class="kpis"><div class="kpi k-est"><b>'+r.estouradas+'</b><span>Estouradas (≥ '+lim+' h)</span></div>'+
     '<div class="kpi k-ale"><b>'+r.alerta+'</b><span>Em alerta (≥ '+al+' h)</span></div>'+
     '<div class="kpi k-pra"><b>'+r.prazo+'</b><span>No prazo</span></div></div>';
-  if(!p.itens||!p.itens.length)return h+'</section>';
-  var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'};
-  return h+'<div class="list">'+p.itens.map(function(i){
-    return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'</span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · saiu '+esc(String(i.saida||'').slice(8,10)+'/'+String(i.saida||'').slice(5,7)+' '+String(i.saida||'').slice(11,16))+' · '+rot[i.faixa]+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
-}
-function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();}},20000);}
+  if(!itens.length)return h+'<div class="empty">Nenhuma rota nesta operação.</div></section>';
+  var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'},nop={SUMARE:'Sumaré',GRU_SJC:'GRU / SJC',SEM:'Sem operação'};
+  return h+'<div class="list">'+itens.map(function(i){var s=String(i.saida||'');
+    return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'<br><span class="opx">'+esc(nop[i.operacao||'SEM']||'')+'</span></span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · saiu '+esc(s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16))+' · '+rot[i.faixa]+(i.organizacao?' · '+esc(i.organizacao):'')+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
+}function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();}},20000);}
 
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
@@ -278,6 +292,7 @@ function render(){
 function guarda(){var q=document.getElementById('pQuem'),s=document.getElementById('pSenha');if(q)S.prog.quem=q.value.trim();if(s)S.prog.senha=s.value;progSet();}
 root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(!b)return;var ac=b.getAttribute('data-act');
   if(ac==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
+  if(ac==='fop'){S.opf=b.getAttribute('data-op')||'TODAS';render();return;}
   if(ac==='manter'&&S.conflito){tratAdd(S.conflito.id);S.conflito=null;S.msg='Mantido como estava. Nada foi alterado.';S.msgOk=true;render();return;}
   if(ac==='sobrescrever'&&S.conflito&&S.conflito.conflito){var c=S.conflito.conflito;
     if(!S.prog.quem||!S.prog.senha){S.conflito=null;S.msg='Informe seu nome e a senha de programação e envie de novo.';S.msgOk=false;render();return;}
