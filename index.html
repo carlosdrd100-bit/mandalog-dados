@@ -203,7 +203,8 @@ function carregaPend(){
     return decrypt(env,S.pass).then(function(d){S.pend=d;render();},function(){});
   }).catch(function(){});
 }
-var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU_SJC','Café GRU / SJC'],['SEM','Sem operação']];
+var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU','Café GRU'],['SJC','Café SJC'],['GRU_SJC','GRU / SJC (a definir)'],['SEM','Sem operação']];
+var NOP={SUMARE:'Sumaré',GRU:'GRU',SJC:'SJC',GRU_SJC:'GRU / SJC (a definir)',SEM:'Sem operação'};
 var SITS=[['TODAS','Todas as situações'],['finalizar','Falta finalizar'],['nao_iniciada','Não iniciadas'],['sem_movimento','Sem movimento']];
 /* metas (SLA do cliente: finalizar no mesmo dia da saída = 24 h). Ajuste aqui se a meta mudar. */
 var METAS={sla:95,tempo:18,semMov:2,naoIni:0,estouradas:0};
@@ -231,7 +232,7 @@ function pendencias(){
   var g=String(p.gerado||'');
   h+='<section class="card"><h2>Pendentes de ação</h2><p class="hint">Rotas MANDALOG de ontem em diante. Meta do cliente: finalizar no mesmo dia da saída ('+lim+' h). Atualizado em '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'.</p>'+
     '<div class="chips" role="tablist" aria-label="Operação">'+OPS.map(function(o){var base=todos.filter(function(i){return o[0]==='TODAS'||(i.operacao||'SEM')===o[0];}),c=contaPend(base);
-      if(o[0]==='SEM'&&!c.total)return '';
+      if((o[0]==='SEM'||o[0]==='GRU_SJC')&&!c.total)return '';
       return '<button type="button" class="chip'+(op===o[0]?' on':'')+(c.estouradas?' red':'')+'" data-act="fop" data-op="'+o[0]+'" role="tab" aria-selected="'+(op===o[0])+'">'+o[1]+' <b>'+c.total+'</b>'+(c.estouradas?'<span class="dot">'+c.estouradas+' estour.</span>':'')+'</button>';}).join('')+'</div>'+
     '<div class="chips" role="tablist" aria-label="Situação">'+SITS.map(function(s){var base=todos.filter(function(i){return (op==='TODAS'||(i.operacao||'SEM')===op)&&bateSit(i,s[0]);});
       return '<button type="button" class="chip sm'+(sit===s[0]?' on':'')+'" data-act="fsit" data-sit="'+s[0]+'" role="tab" aria-selected="'+(sit===s[0])+'">'+s[1]+' <b>'+base.length+'</b></button>';}).join('')+'</div>'+
@@ -239,10 +240,10 @@ function pendencias(){
     '<div class="kpi k-ale"><b>'+r.alerta+'</b><span>Em alerta (≥ '+al+' h)</span></div>'+
     '<div class="kpi k-pra"><b>'+r.prazo+'</b><span>No prazo</span></div></div>';
   if(!itens.length)return h+'<div class="empty">Nenhuma rota neste filtro.</div></section>';
-  var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'},nop={SUMARE:'Sumaré',GRU_SJC:'GRU / SJC',SEM:'Sem operação'};
+  var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'},nop=NOP;
   var tip={finalizar:'Falta finalizar',nao_iniciada:'Atrelada e não iniciada'};
   return h+'<div class="list">'+itens.map(function(i){var s=String(i.saida||i.ref||'');
-    var sm=i.sem_movimento?'<span class="tag">Sem movimento</span>':'';
+    var sm=(i.sem_movimento?'<span class="tag">Sem movimento</span> ':'')+(i.divergente?'<span class="tag" title="O CD do GM7 e a aba da planilha apontam operações diferentes">Operação divergente</span>':'');
     return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'<br><span class="opx">'+esc(nop[i.operacao||'SEM']||'')+'</span></span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · '+(i.tipo==='nao_iniciada'?'saída prevista ':'saiu ')+esc(s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16))+'<br><span class="opx">'+esc(tip[i.tipo]||'')+' · '+rot[i.faixa]+(i.organizacao?' · '+esc(i.organizacao):'')+'</span> '+sm+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
 }
 /* ---------- indicadores (a partir do histórico guardado pelo robô) ---------- */
@@ -287,7 +288,7 @@ function indicadores(){
   if(ks.length)h+='<section class="card"><h2>SLA por dia de saída</h2><div class="bars">'+ks.map(function(d){var v=Math.round(dias[d].ok*100/dias[d].n);
     return '<div class="bar"><div class="bv" style="height:'+Math.max(4,v)+'%"><span>'+v+'%</span></div><small>'+esc(d.slice(8,10)+'/'+d.slice(5,7))+'<br>'+dias[d].n+' rotas</small></div>';}).join('')+'</div></section>';
   /* por operação */
-  var nop={SUMARE:'Café Sumaré',GRU_SJC:'Café GRU / SJC',SEM:'Sem operação'};
+  var nop={SUMARE:'Café Sumaré',GRU:'Café GRU',SJC:'Café SJC',GRU_SJC:'GRU / SJC (a definir)',SEM:'Sem operação'};
   var linhasOp=Object.keys(nop).map(function(op){var rr=recs.filter(function(r){return (r.operacao||'SEM')===op;});if(!rr.length)return '';
     var v=rr.filter(function(r){return venc.indexOf(r)>=0;}),o=v.filter(function(r){return ok.indexOf(r)>=0;}),s=pct(o.length,v.length);
     return '<div class="prow '+(s===null?'f-pra':(s>=METAS.sla?'f-pra':'f-est'))+'"><span class="pl">'+nop[op]+'</span><span class="w">'+rr.length+' rotas · '+rr.filter(function(r){return r.estourou;}).length+' estouraram · '+rr.filter(function(r){return r.ja_sem_movimento;}).length+' sem movimento · '+rr.filter(function(r){return r.ja_nao_iniciada;}).length+' não iniciadas</span><span class="h">'+(s===null?'—':s+'%')+'</span></div>';}).join('');
