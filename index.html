@@ -157,12 +157,12 @@ body.cc footer{display:none}
 .cc-left{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
 .cc-bar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
 .cc-bar .chips{margin:0}
-.cc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cc-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .cc-kpi{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:6px 12px;display:flex;align-items:baseline;gap:10px}
 .cc-kpi b{font-family:var(--f-display);font-size:30px;line-height:1;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .cc-kpi span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--ink-2)}
 .cc-kpi.k1{border-left-color:var(--bad)}.cc-kpi.k1 b{color:var(--bad)}.cc-kpi.k2{border-left-color:var(--warn)}.cc-kpi.k2 b{color:var(--warn)}
-.cc-kpi.k3{border-left-color:var(--ok)}.cc-kpi.k3 b{color:var(--ok)}.cc-kpi.k4{border-left-color:var(--or)}.cc-kpi.k4 b{color:var(--or)}
+.cc-kpi.k3{border-left-color:var(--ok)}.cc-kpi.k3 b{color:var(--ok)}.cc-kpi.k4{border-left-color:var(--or)}.cc-kpi.k4 b{color:var(--or)}.cc-kpi.k5{border-left-color:#F4EEE8}.cc-kpi.k5 b{color:#F4EEE8}
 .cc-map{isolation:isolate;z-index:0;flex:1;min-height:320px;border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;background:#050505}
 #mapa{position:absolute;inset:0}
 .cc-leg{position:absolute;left:10px;bottom:10px;z-index:500;background:rgba(10,10,10,.88);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--ink-2);display:flex;gap:12px;flex-wrap:wrap}
@@ -178,6 +178,7 @@ body.cc footer{display:none}
 .vc .h{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1;text-align:right;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .vc.f-est .h{color:var(--bad)}.vc.f-ale .h{color:var(--warn)}.vc.f-pra .h{color:var(--ok)}
 .vc .w{grid-column:1 / -1;font-size:12.5px}
+.vc.cf .h{font-size:13px;letter-spacing:.06em;align-self:center}.vc.cf .pt{font-size:15px}
 .pinw{background:none;border:0}
 .pin{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;pointer-events:auto}
 .pin .pt{background:#FF7A00;color:#0A0A0A;font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;font-weight:600;font-size:11.5px;letter-spacing:.02em;padding:3px 7px;border-radius:6px;border:2px solid #0A0A0A;box-shadow:0 0 0 1.5px #FF7A00,0 3px 10px rgba(0,0,0,.7);white-space:nowrap}
@@ -325,7 +326,12 @@ var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU','Café GRU'],['SJC'
 var NOP={SUMARE:'Sumaré',GRU:'GRU',SJC:'SJC',SEM:'Sem operação'};
 /* cada rota e de UMA operacao: GRU_SJC (registro antigo) conta como GRU */
 function opDe(x){var o=(x&&x.operacao)||'SEM';return o==='GRU_SJC'?'GRU':o;}
-var SITS=[['TODAS','Todas as situações'],['finalizar','Falta finalizar'],['nao_iniciada','Não iniciadas'],['sem_movimento','Sem movimento']];
+var SITS=[['TODAS','Todas as situações'],['finalizar','Falta finalizar'],['nao_iniciada','Não iniciadas'],['sem_movimento','Sem movimento'],['conferencia','Conferência']];
+/* conferencia planilha x GM7 (feita pelo robo: planos lancados hoje e amanha na planilha) */
+var CF_ROT={sem_placa_gm7:'Sem placa no GM7',sem_motorista_gm7:'Sem motorista no GM7',placa_diferente:'Placa diferente',plano_nao_achado_gm7:'Plano não existe no GM7',fora_da_planilha:'Fora da planilha'};
+function confItens(op){var c=S.pend&&S.pend.conferencia;if(!c||!c.itens)return [];return c.itens.filter(function(x){return !op||op==='TODAS'||opDe(x)===op;});}
+function confBreak(op){var m={};confItens(op).forEach(function(x){m[x.tipo]=(m[x.tipo]||0)+1;});var k=Object.keys(m);return k.length?k.map(function(t){var n=CF_ROT[t]||t;return m[t]+' '+n.charAt(0).toLowerCase()+n.slice(1);}).join(' · '):'tudo conferido';}
+function confOk(){var c=S.pend&&S.pend.conferencia;return !!(c&&c.ok);}
 /* metas (SLA do cliente: finalizar no mesmo dia da saída = 24 h). Ajuste aqui se a meta mudar. */
 var METAS={sla:95,tempo:18,semMov:2,naoIni:0,estouradas:0};
 function contaPend(lista){var c={total:lista.length,estouradas:0,alerta:0,prazo:0,semMov:0,naoIni:0};lista.forEach(function(i){
@@ -334,18 +340,20 @@ function contaPend(lista){var c={total:lista.length,estouradas:0,alerta:0,prazo:
 function bateSit(i,s){return s==='TODAS'||(s==='sem_movimento'?i.sem_movimento===true:(i.tipo||'finalizar')===s);}
 function bannerSLA(){
   var p=S.pend;if(!p||!p.itens)return '';var R=contaPend(p.itens),lim=Math.round(p.limite_h||24);
-  if(!R.estouradas&&!R.semMov&&!R.naoIni)return '';
-  var partes=[];if(R.estouradas)partes.push(R.estouradas+' estourada'+(R.estouradas>1?'s':'')+' (mais de '+lim+' h)');
+  var CF=confItens('TODAS').length;
+  if(!R.estouradas&&!R.semMov&&!R.naoIni&&!CF)return '';
+  var partes=[];if(R.estouradas)partes.push(R.estouradas+' fora do prazo (mais de '+lim+' h)');
   if(R.semMov)partes.push(R.semMov+' sem movimento após a saída');if(R.naoIni)partes.push(R.naoIni+' atrelada'+(R.naoIni>1?'s':'')+' e não iniciada'+(R.naoIni>1?'s':''));
-  return '<div class="sla-banner'+(R.estouradas?'':' amb')+'" role="alert">⚠ '+partes.join(' · ')+'<small>Rotas MANDALOG. Aja no GM7Driver. Cobrança por e-mail às 08h e 16h, com cópia ao gestor quando há estourada.</small></div>';
+  if(CF)partes.push(CF+' divergência'+(CF>1?'s':'')+' planilha × GM7');
+  return '<div class="sla-banner'+(R.estouradas?'':' amb')+'" role="alert">⚠ '+partes.join(' · ')+'<small>Rotas MANDALOG. Aja no GM7Driver. Cobrança por e-mail às 08h e 16h, com cópia ao gestor quando há rota fora do prazo.</small></div>';
 }
 function abas(){var a=[['lanc','Lançamentos'],['pend','Pendências'],['ind','Indicadores']];
   return '<div class="tabs" role="tablist">'+a.map(function(x){return '<button type="button" class="tab'+(S.aba===x[0]?' on':'')+'" data-act="aba" data-aba="'+x[0]+'" role="tab" aria-selected="'+(S.aba===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';}
 /* ---------- central de pendencias (mapa preto/laranja) ---------- */
 var MAP=null,MAPEL=null,CAMADA=null,MARC={};
-var FCLS={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},FROT={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'};
+var FCLS={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},FROT={estourada:'Fora do prazo',alerta:'Em alerta',prazo:'No prazo'};
 var TIP={finalizar:'Falta finalizar',nao_iniciada:'Atrelada e não iniciada'};
-function itensFiltrados(){var p=S.pend;if(!p||!p.itens)return [];var op=S.opf||'TODAS',sit=S.sit||'TODAS';
+function itensFiltrados(){var p=S.pend;if(!p||!p.itens)return [];var op=S.opf||'TODAS',sit=S.sit||'TODAS';if(sit==='conferencia')return [];
   return p.itens.filter(function(i){return (op==='TODAS'||opDe(i)===op)&&bateSit(i,sit);});}
 function fmtSaida(i){var s=String(i.saida||i.ref||'');return s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16);}
 function fonteTxt(pos){if(!pos)return 'sem posição';
@@ -358,23 +366,32 @@ function pendencias(){
   var chipsOp=OPS.map(function(o){var base=todos.filter(function(i){return o[0]==='TODAS'||opDe(i)===o[0];}),c=contaPend(base);
       if(o[0]==='SEM'&&!c.total)return '';
       return '<button type="button" class="chip sm'+(op===o[0]?' on':'')+(c.estouradas?' red':'')+'" data-act="fop" data-op="'+o[0]+'" role="tab" aria-selected="'+(op===o[0])+'">'+o[1]+' <b>'+c.total+'</b></button>';}).join('');
-  var chipsSit=SITS.map(function(s){var base=todos.filter(function(i){return (op==='TODAS'||opDe(i)===op)&&bateSit(i,s[0]);});
-      return '<button type="button" class="chip sm'+(sit===s[0]?' on':'')+'" data-act="fsit" data-sit="'+s[0]+'" role="tab" aria-selected="'+(sit===s[0])+'">'+s[1]+' <b>'+base.length+'</b></button>';}).join('');
+  var chipsSit=SITS.map(function(s){var n=s[0]==='conferencia'?confItens(op).length:todos.filter(function(i){return (op==='TODAS'||opDe(i)===op)&&bateSit(i,s[0]);}).length;
+      return '<button type="button" class="chip sm'+(sit===s[0]?' on':'')+(s[0]==='conferencia'&&n?' red':'')+'" data-act="fsit" data-sit="'+s[0]+'" role="tab" aria-selected="'+(sit===s[0])+'">'+s[1]+' <b>'+(s[0]==='conferencia'&&!confOk()?'–':n)+'</b></button>';}).join('');
   var cards=itens.map(function(i){
     var tags=(i.sem_movimento?'<span class="tag">Sem movimento</span> ':'')+(i.divergente?'<span class="tag" title="A planilha e o CD do GM7 apontam operações diferentes">Operação divergente</span> ':'')+(i.inferida?'<span class="tag" title="A planilha não tem este plano; assumido GRU (CD Guarulhos). Confirme na planilha">Operação assumida: GRU</span>':'');
     return '<div class="vc '+FCLS[i.faixa]+(S.sel===i.plano?' sel':'')+'" data-act="sel" data-plano="'+esc(i.plano)+'" tabindex="0">'+
       '<span class="pt">'+esc(i.placa||'SEM PLACA')+'</span><span class="h">'+Math.round(i.horas)+' h</span>'+
       '<span class="w"><b>'+esc(i.motorista||'—')+'</b> · plano '+esc(i.plano)+'<br><span class="opx">'+esc(NOP[opDe(i)]||'')+' · '+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+'</span> '+tags+
       '<br><span class="opx">'+(i.tipo==='nao_iniciada'?'saída prevista ':'saiu ')+esc(fmtSaida(i))+' · '+esc(fonteTxt(i.pos))+'</span></span></div>';}).join('');
+  var cfN=confItens(op).length,vazioCf='';
+  if(sit==='conferencia'){
+    cards=confItens(op).map(function(x){var hj=x.dia==='hoje';
+      return '<div class="vc cf '+(hj?'f-est':'f-ale')+'"><span class="pt">'+esc(x.plano)+'</span><span class="h">'+(hj?'HOJE':'AMANHÃ')+'</span>'+
+        '<span class="w"><b>'+esc(CF_ROT[x.tipo]||x.tipo)+'</b> · '+esc(NOP[opDe(x)]||'')+'<br><span class="opx">'+esc(x.detalhe||'')+'</span>'+
+        '<br><span class="opx">'+(x.tipo==='fora_da_planilha'?'lançar na planilha agora':(hj?'corrigir agora':'corrigir antes da saída'))+(x.motorista?' · '+esc(x.motorista):'')+'</span></span></div>';}).join('');
+    vazioCf=confOk()?'✔ Nenhuma divergência entre a planilha e o GM7 (hoje e amanhã).':'A conferência não pôde ser feita nesta leitura (a planilha não respondeu). Tente na próxima atualização.';
+  }
   return '<div class="cc-main"><section class="cc-left">'+
     '<div class="cc-bar"><div class="chips" role="tablist" aria-label="Operação">'+chipsOp+'</div><div class="chips" role="tablist" aria-label="Situação">'+chipsSit+'</div>'+
       '<button type="button" class="btn rel-btn" data-act="relabre" title="Gerar relatório em PDF ou Excel">⬇ Relatório</button></div>'+
-    '<div class="cc-kpis"><div class="cc-kpi k1"><b>'+r.estouradas+'</b><span>Estouradas (&gt; '+lim+' h)</span></div><div class="cc-kpi k2"><b>'+r.alerta+'</b><span>Em alerta</span></div>'+
-    '<div class="cc-kpi k3"><b>'+r.prazo+'</b><span>No prazo</span></div><div class="cc-kpi k4"><b>'+r.semMov+'</b><span>Sem movimento</span></div></div>'+
+    '<div class="cc-kpis"><div class="cc-kpi k1"><b>'+r.estouradas+'</b><span>Fora do prazo (&gt; '+lim+' h)</span></div><div class="cc-kpi k2"><b>'+r.alerta+'</b><span>Em alerta</span></div>'+
+    '<div class="cc-kpi k3"><b>'+r.prazo+'</b><span>No prazo</span></div><div class="cc-kpi k4"><b>'+r.semMov+'</b><span>Sem movimento</span></div>'+
+    '<div class="cc-kpi k5"><b>'+(confOk()?cfN:'–')+'</b><span>Conferência planilha × GM7</span></div></div>'+
     '<div class="cc-map"><div id="mapaSlot" style="position:absolute;inset:0"></div>'+
-    '<div class="cc-leg"><span><i style="background:#FF3B2F"></i>Estourada</span><span><i style="background:#FFB020"></i>Em alerta</span><span><i style="background:#FF7A00"></i>Em andamento</span><span><i style="background:#FFD9B0"></i>No prazo</span></div></div></section>'+
-    '<aside class="cc-side"><div class="cc-sh">Veículos pendentes · '+itens.length+'<small>Rotas MANDALOG dos últimos '+(p.janela_dias||7)+' dias · meta '+lim+' h · atualizado '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'</small></div>'+
-    '<div class="cc-list">'+(cards||'<div class="empty" style="margin:12px">'+(todos.length?'Nenhuma rota neste filtro.':'✔ Nenhuma rota MANDALOG pendente de ação.')+'</div>')+'</div></aside></div>';
+    '<div class="cc-leg"><span><i style="background:#FF3B2F"></i>Fora do prazo</span><span><i style="background:#FFB020"></i>Em alerta</span><span><i style="background:#FF7A00"></i>Em andamento</span><span><i style="background:#FFD9B0"></i>No prazo</span></div></div></section>'+
+    '<aside class="cc-side"><div class="cc-sh">'+(sit==='conferencia'?'Conferência planilha × GM7 · '+confItens(op).length:'Veículos pendentes · '+itens.length)+'<small>'+(sit==='conferencia'?'Planos lançados na planilha para hoje e amanhã, cruzados com o GM7 · ':'Rotas MANDALOG dos últimos '+(p.janela_dias||7)+' dias, sem as lançadas para o dia seguinte · meta '+lim+' h · ')+'atualizado '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'</small></div>'+
+    '<div class="cc-list">'+(cards||'<div class="empty" style="margin:12px">'+(sit==='conferencia'?vazioCf:(todos.length?'Nenhuma rota neste filtro.':'✔ Nenhuma rota MANDALOG pendente de ação.'))+'</div>')+'</div></aside></div>';
 }
 /* o mapa e criado uma vez e reaproveitado a cada render (o render recria o HTML da tela) */
 function pinHtml(i,sel){return '<div class="pin '+FCLS[i.faixa]+(sel?' sel':'')+'"><span class="pt">'+esc(i.placa||'S/PLACA')+'</span><i></i></div>';}
@@ -478,7 +495,7 @@ function rankingIx(titulo,dica,recs,campo,vazio){
   var max=lista.length?lista[0].p:1;
   return '<section class="ixcard"><h2>'+titulo+'</h2><p class="hint">'+dica+'</p>'+(lista.length?lista.map(function(x,i){
     return '<div class="rk"><span class="rn">'+(i+1)+'</span><div class="rb"><div class="rt"><b>'+esc(x.k)+'</b><em>'+x.p+' de '+x.n+' rota'+(x.n>1?'s':'')+' com ocorrência · '+Math.round((x.n-x.p)*100/x.n)+'% no prazo</em></div>'+
-      '<div class="rbar"><i style="width:'+Math.max(6,Math.round(x.p*100/max))+'%"></i></div></div><span class="rc">'+(x.est?'<u class="c-e">'+x.est+' estour.</u>':'')+(x.sm?'<u class="c-s">'+x.sm+' s/ mov.</u>':'')+(x.ni?'<u class="c-n">'+x.ni+' não ini.</u>':'')+'</span></div>';}).join(''):'<div class="empty">'+vazio+'</div>')+'</section>';}
+      '<div class="rbar"><i style="width:'+Math.max(6,Math.round(x.p*100/max))+'%"></i></div></div><span class="rc">'+(x.est?'<u class="c-e">'+x.est+' fora do prazo</u>':'')+(x.sm?'<u class="c-s">'+x.sm+' s/ mov.</u>':'')+(x.ni?'<u class="c-n">'+x.ni+' não ini.</u>':'')+'</span></div>';}).join(''):'<div class="empty">'+vazio+'</div>')+'</section>';}
 function leituraIx(cur,serie,recsPorOp){
   var l=[];
   if(cur.sla!==null){var d=Math.round((cur.sla-METAS.sla)*10)/10;
@@ -516,13 +533,14 @@ function indicadores(){
       kpiIx('Tempo médio até finalizar',cur.tempo,fmt1(cur.tempo)+' h','≤ '+METAS.tempo+' h',cur.tempo!==null&&cur.tempo<=METAS.tempo,deltaHtml(cur.tempo,prev&&prev.tempo,'h',false))+
       kpiIx('Rotas sem movimento',cur.sm,fmt1(cur.sm)+'%','≤ '+METAS.semMov+'%',cur.sm!==null&&cur.sm<=METAS.semMov,deltaHtml(cur.sm,prev&&prev.sm,'pts',false))+
       kpiIx('Atreladas e não iniciadas',cur.n?cur.ni:null,String(cur.ni),'= '+METAS.naoIni,cur.ni<=METAS.naoIni,deltaHtml(cur.n?cur.ni:null,prev&&prev.ni,'',false))+
-      kpiIx('Estouradas abertas agora',est,String(est),'= '+METAS.estouradas,est!==null&&est<=METAS.estouradas,'<span class="dl nd">visão em tempo real</span>')+
+      kpiIx('Fora do prazo (abertas agora)',est,String(est),'= '+METAS.estouradas,est!==null&&est<=METAS.estouradas,'<span class="dl nd">visão em tempo real</span>')+
+      kpiIx('Divergências planilha × GM7',confOk()?confItens(iop).length:null,String(confItens(iop).length),'= 0',confOk()&&confItens(iop).length===0,'<span class="dl nd">'+(confOk()?esc(confBreak(iop)):'planilha indisponível agora')+'</span>')+
       '<div class="ixk"><span class="ixt">Volume do período</span><b>'+cur.n+'</b><span class="dl nd">'+cur.fin.length+' finalizadas · '+cur.venc.length+' vencidas (&gt; 24 h)</span><span class="ixm">Rotas MANDALOG</span></div>'+
     '</div>'+
     '<section class="ixcard"><div class="ix-h"><h2>SLA por dia de saída'+(iop==='TODAS'?' · todas as operações':' · '+(ABA_NOME[iop]||NOP[iop]||iop))+'</h2><span class="ix-leg"><i style="background:var(--ok)"></i>≥ meta <i style="background:var(--or)"></i>até 15 pts abaixo <i style="background:var(--bad)"></i>crítico <i class="ln"></i>média móvel 7 dias</span></div>'+graficoSla(serie)+'</section>'+
     (iop==='TODAS'?graficosPorOperacao(porOp):'')+
     (leitura.length?'<section class="ixcard ix-leit"><h2>Leitura do período</h2><ul>'+leitura.map(function(t){return '<li>'+t+'</li>';}).join('')+'</ul></section>':'')+
-    rankingIx('Motoristas com mais ocorrências','Rotas em que estourou o prazo, ficou sem movimento ou não foi iniciada. A placa é vinculada ao motorista dono do veículo, então o ranking é um só.',cur.recs,'motorista','Nenhuma ocorrência de motorista no período.')+'</div>';
+    rankingIx('Motoristas com mais ocorrências','Rotas em que ficou fora do prazo, ficou sem movimento ou não foi iniciada. A placa é vinculada ao motorista dono do veículo, então o ranking é um só.',cur.recs,'motorista','Nenhuma ocorrência de motorista no período.')+'</div>';
   return h;
 }
 
@@ -560,18 +578,19 @@ function relDados(D,D2,op){
     return {op:opDe(r),placa:r.placa||'',mot:r.motorista||'',plano:r.plano,saida:fmtDH(r.ref),horas:h,faixa:f,sit:sitLinha(r.ultimo_tipo,f,r.ja_sem_movimento)};});}
   linhas.sort(function(a,b){return b.horas-a.horas;});
   var estAbertas=linhas.filter(function(l){return l.faixa==='estourada';}).length;
+  var conf=(ao_vivo&&confOk())?confItens(op).map(function(x){return {dia:x.dia==='hoje'?'Hoje':'Amanhã',op:opDe(x),plano:x.plano,tipo:CF_ROT[x.tipo]||x.tipo,detalhe:x.detalhe||''};}):[];
   var rotasDia=dia.map(function(r){return {op:opDe(r),plano:r.plano,placa:r.placa||'',mot:r.motorista||'',saida:fmtDH(r.ref),ord:String(r.ref),
     cor:r.estourou?'e':(r.finalizada?'o':'a'),
-    sit:r.finalizada?('Finalizada'+(r.final_h!=null?' em '+fmt1(r.final_h)+' h':'')+(r.estourou?' (fora do SLA)':'')):('Aberta'+(r.estourou?' · estourada':'')),
+    sit:r.finalizada?('Finalizada'+(r.final_h!=null?' em '+fmt1(r.final_h)+' h':'')+(r.estourou?' (fora do SLA)':'')):('Aberta'+(r.estourou?' · fora do prazo':'')),
     horas:r.finalizada&&r.final_h!=null?r.final_h:(r.horas_max||0)};}).sort(function(a,b){return a.ord<b.ord?-1:1;});
   var nFin=dia.filter(function(r){return r.finalizada;}).length;
-  return {D:D,D2:D2,periodo:periodo,op:op,hoje:hoje,aoVivo:!!ao_vivo,cur:cur,serie:serie,dia:dia,linhas:linhas,estAbertas:estAbertas,rotasDia:rotasDia,
+  return {D:D,D2:D2,periodo:periodo,op:op,hoje:hoje,aoVivo:!!ao_vivo,cur:cur,serie:serie,dia:dia,linhas:linhas,estAbertas:estAbertas,rotasDia:rotasDia,conf:conf,
     kpis:[
       ['SLA em 24 h',cur.sla===null?'—':fmt1(cur.sla)+'%','Meta ≥ '+METAS.sla+'%',cur.sla===null?null:cur.sla>=METAS.sla],
       ['Tempo médio até finalizar',cur.tempo===null?'—':fmt1(cur.tempo)+' h','Meta ≤ '+METAS.tempo+' h',cur.tempo===null?null:cur.tempo<=METAS.tempo],
       ['Rotas sem movimento',cur.sm===null?'—':fmt1(cur.sm)+'%','Meta ≤ '+METAS.semMov+'%',cur.sm===null?null:cur.sm<=METAS.semMov],
       ['Atreladas e não iniciadas',String(cur.ni),'Meta = '+METAS.naoIni,cur.ni<=METAS.naoIni],
-      [ao_vivo?'Estouradas abertas agora':'Estouradas em aberto',String(estAbertas),'Meta = '+METAS.estouradas,estAbertas<=METAS.estouradas],
+      [ao_vivo?'Fora do prazo (abertas agora)':'Fora do prazo (em aberto)',String(estAbertas),'Meta = '+METAS.estouradas,estAbertas<=METAS.estouradas],
       [periodo?'Saídas no período':'Saídas em '+fmtDM(D),String(dia.length),nFin+' finalizadas · '+(dia.length-nFin)+' abertas',null]]};
 }
 function gerarPdf(d){
@@ -626,11 +645,22 @@ function gerarPdf(d){
     doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(20,20,20);if(y>255){doc.addPage();y=16;}
     doc.text('Pendências para cobrança · '+d.linhas.length,M,y);y+=2;
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);
-    doc.text(d.aoVivo?'Rotas MANDALOG abertas agora, das mais críticas para as menos críticas. Vermelho = estourada; amarelo = em alerta.':'Rotas que saíram '+(d.periodo?'entre '+fmtDMA(d.D)+' e '+fmtDMA(d.D2):'em '+fmtDMA(d.D))+' e ainda não foram finalizadas.',M,y+3.5);y+=8;
+    doc.text(d.aoVivo?'Rotas MANDALOG abertas agora, das mais críticas para as menos críticas. Vermelho = fora do prazo; amarelo = em alerta.':'Rotas que saíram '+(d.periodo?'entre '+fmtDMA(d.D)+' e '+fmtDMA(d.D2):'em '+fmtDMA(d.D))+' e ainda não foram finalizadas.',M,y+3.5);y+=8;
     if(!d.linhas.length){doc.setFontSize(10);doc.setTextColor(20,128,63);doc.setFont('helvetica','bold');doc.text('Nenhuma pendência para este período.',M,y+3);y+=8;}
     else if(d.op==='TODAS'){['SUMARE','GRU','SJC','SEM'].forEach(function(o){var ls=d.linhas.filter(function(l){return l.op===o;});if(!ls.length)return;
-      titulo((ABA_NOME[o]||NOP[o])+' · '+ls.length+' pendência'+(ls.length>1?'s':'')+' · '+ls.filter(function(l){return l.faixa==='estourada';}).length+' estourada(s)',[200,90,0]);tabela(ls);});}
+      titulo((ABA_NOME[o]||NOP[o])+' · '+ls.length+' pendência'+(ls.length>1?'s':'')+' · '+ls.filter(function(l){return l.faixa==='estourada';}).length+' fora do prazo',[200,90,0]);tabela(ls);});}
     else{tabela(d.linhas);}
+    if(d.conf&&d.conf.length){
+      if(y>240){doc.addPage();y=16;}
+      doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(20,20,20);doc.text('Conferência planilha × GM7 · '+d.conf.length,M,y);y+=2;
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);doc.text('Planos lançados na planilha para hoje e amanhã que precisam de correção no GM7 (ou na planilha).',M,y+3.5);y+=6;
+      doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',head:[['Dia','Operação','Plano','Problema','Detalhe']],
+        body:d.conf.map(function(x){return [x.dia,NOP[x.op]||x.op,x.plano,x.tipo,x.detalhe];}),
+        styles:{fontSize:8,cellPadding:1.6,lineColor:[216,220,230],lineWidth:.1,textColor:[30,30,30]},headStyles:{fillColor:[14,14,14],textColor:[255,122,0],fontStyle:'bold'},
+        columnStyles:{0:{cellWidth:18},1:{cellWidth:20},2:{cellWidth:26,fontStyle:'bold'},3:{cellWidth:40},4:{cellWidth:'auto'}},
+        didParseCell:function(h){if(h.section==='body'&&d.conf[h.row.index].dia==='Hoje')h.cell.styles.fillColor=[253,230,227];}});
+      y=doc.lastAutoTable.finalY+6;
+    }
     if(d.periodo){   /* fechamento: historico completo das rotas do periodo */
       if(y>250){doc.addPage();y=16;}
       doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(20,20,20);doc.text('Histórico de rotas do período · '+d.rotasDia.length,M,y);y+=2;
@@ -662,6 +692,8 @@ function gerarXlsx(d){
     var pend=[['Operação','Placa','Motorista','Plano','Saída','Horas em aberto','Situação']];
     d.linhas.forEach(function(l){pend.push([NOP[l.op]||l.op,l.placa,l.mot,l.plano,l.saida,Math.round(l.horas),l.sit]);});
     var ws2=X.utils.aoa_to_sheet(pend);ws2['!cols']=[{wch:12},{wch:11},{wch:30},{wch:14},{wch:14},{wch:15},{wch:42}];ws2['!autofilter']={ref:'A1:G'+pend.length};X.utils.book_append_sheet(wb,ws2,'Pendências');
+    if(d.conf&&d.conf.length){var cf=[['Dia','Operação','Plano','Problema','Detalhe']];d.conf.forEach(function(x){cf.push([x.dia,NOP[x.op]||x.op,x.plano,x.tipo,x.detalhe]);});
+      var wsC=X.utils.aoa_to_sheet(cf);wsC['!cols']=[{wch:10},{wch:12},{wch:14},{wch:26},{wch:60}];wsC['!autofilter']={ref:'A1:E'+cf.length};X.utils.book_append_sheet(wb,wsC,'Conferência');}
     var rd=[['Operação','Plano','Placa','Motorista','Saída','Situação','Horas']];
     d.rotasDia.forEach(function(l){rd.push([NOP[l.op]||l.op,l.plano,l.placa,l.mot,l.saida,l.sit,Math.round(l.horas*10)/10]);});
     var ws3=X.utils.aoa_to_sheet(rd);ws3['!cols']=[{wch:12},{wch:14},{wch:11},{wch:30},{wch:14},{wch:34},{wch:9}];ws3['!autofilter']={ref:'A1:G'+rd.length};X.utils.book_append_sheet(wb,ws3,d.periodo?'Rotas do período':'Rotas do dia');
