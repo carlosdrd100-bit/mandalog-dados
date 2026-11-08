@@ -99,6 +99,25 @@ input[type=date]{color-scheme:light dark}
 .prow.f-est{border-left-color:var(--bad);background:var(--bad-bg)}.prow.f-ale{border-left-color:var(--warn);background:var(--warn-bg)}.prow.f-pra{border-left-color:var(--ok)}
 .prow .h{font-family:var(--f-display);font-size:24px;font-weight:700;white-space:nowrap}
 .prow.f-est .h{color:var(--bad)}.prow.f-ale .h{color:var(--warn)}
+.sla-banner.amb{background:var(--warn);color:#fff;border-color:#6b4500}
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);margin-top:2px}
+.tab{border:0;background:transparent;color:var(--ink-2);font-weight:600;font-size:16px;padding:10px 16px;border-bottom:4px solid transparent;margin-bottom:-2px;min-height:44px}
+.tab.on{color:var(--navy);border-bottom-color:var(--or)}
+:root[data-theme="dark"] .tab.on{color:var(--info)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tab.on{color:var(--info)}}
+.chip.sm{padding:5px 11px;min-height:34px;font-size:13px}
+.tag{display:inline-block;background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+.mcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:2px}
+.mcard b{font-family:var(--f-display);font-size:34px;line-height:1.05}
+.mcard .mt{font-size:12px;font-weight:600;color:var(--ink-2)}.mcard .mm{font-size:12px;color:var(--ink-2)}
+.mcard.m-ok{background:var(--ok-bg);color:var(--ok)}.mcard.m-bad{background:var(--bad-bg);color:var(--bad)}
+.mcard.m-ok .mt,.mcard.m-ok .mm,.mcard.m-bad .mt,.mcard.m-bad .mm{color:inherit}
+.bars{display:flex;align-items:flex-end;gap:8px;height:150px;margin-top:12px;overflow-x:auto;padding-bottom:30px}
+.bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:44px;position:relative}
+.bar .bv{width:100%;background:var(--or);border-radius:6px 6px 0 0;position:relative;min-height:4px}
+.bar .bv span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:12px;font-weight:700}
+.bar small{position:absolute;bottom:-30px;font-size:10px;color:var(--ink-2);text-align:center;white-space:nowrap}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 6px}
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:600;min-height:40px;display:inline-flex;gap:8px;align-items:center}
 .chip b{background:var(--surface-2);border-radius:999px;padding:1px 8px}
@@ -121,6 +140,8 @@ footer{font-size:12px;color:var(--ink-2)}
 var WORKER_URL='https://mandalog-painel.carlos-eduardo-c87.workers.dev';
 var RESULT_URL='acoes.enc.json';
 var PEND_URL='pendencias.enc.json';
+var HIST_URL='historico.enc.json';
+var LS_ABA='mandalog-aba-v1';
 var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
 var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1', LS_TRAT='mandalog-conflitos-tratados-v1';
 var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô'],CONFLITO:['err','Conflito: aguarda sua decisão']};
@@ -183,29 +204,101 @@ function carregaPend(){
   }).catch(function(){});
 }
 var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU_SJC','Café GRU / SJC'],['SEM','Sem operação']];
-function contaPend(lista){var c={total:lista.length,estouradas:0,alerta:0,prazo:0};lista.forEach(function(i){if(i.faixa==='estourada')c.estouradas++;else if(i.faixa==='alerta')c.alerta++;else c.prazo++;});return c;}
+var SITS=[['TODAS','Todas as situações'],['finalizar','Falta finalizar'],['nao_iniciada','Não iniciadas'],['sem_movimento','Sem movimento']];
+/* metas (SLA do cliente: finalizar no mesmo dia da saída = 24 h). Ajuste aqui se a meta mudar. */
+var METAS={sla:95,tempo:18,semMov:2,naoIni:0,estouradas:0};
+function contaPend(lista){var c={total:lista.length,estouradas:0,alerta:0,prazo:0,semMov:0,naoIni:0};lista.forEach(function(i){
+  if(i.faixa==='estourada')c.estouradas++;else if(i.faixa==='alerta')c.alerta++;else c.prazo++;
+  if(i.sem_movimento)c.semMov++;if(i.tipo==='nao_iniciada')c.naoIni++;});return c;}
+function bateSit(i,s){return s==='TODAS'||(s==='sem_movimento'?i.sem_movimento===true:(i.tipo||'finalizar')===s);}
+function bannerSLA(){
+  var p=S.pend;if(!p||!p.itens)return '';var R=contaPend(p.itens),lim=Math.round(p.limite_h||24);
+  if(!R.estouradas&&!R.semMov&&!R.naoIni)return '';
+  var partes=[];if(R.estouradas)partes.push(R.estouradas+' estourada'+(R.estouradas>1?'s':'')+' (mais de '+lim+' h)');
+  if(R.semMov)partes.push(R.semMov+' sem movimento após a saída');if(R.naoIni)partes.push(R.naoIni+' atrelada'+(R.naoIni>1?'s':'')+' e não iniciada'+(R.naoIni>1?'s':''));
+  return '<div class="sla-banner'+(R.estouradas?'':' amb')+'" role="alert">⚠ '+partes.join(' · ')+'<small>Rotas MANDALOG. Aja no GM7Driver. Cobrança por e-mail às 08h e 16h, com cópia ao gestor quando há estourada.</small></div>';
+}
+function abas(){var a=[['pend','Pendências'],['ind','Indicadores'],['lanc','Lançamentos']];
+  return '<div class="tabs" role="tablist">'+a.map(function(x){return '<button type="button" class="tab'+(S.aba===x[0]?' on':'')+'" data-act="aba" data-aba="'+x[0]+'" role="tab" aria-selected="'+(S.aba===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';}
 function pendencias(){
   var p=S.pend;
-  if(!p||!p.resumo)return '<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram e ainda não foram finalizadas no GM7. Aguardando a primeira leitura…</p></section>';
-  var lim=Math.round(p.limite_h||30),al=Math.round(p.alerta_h||20),h='';
-  var todos=p.itens||[],op=S.opf||'TODAS';
-  var itens=op==='TODAS'?todos:todos.filter(function(i){return (i.operacao||'SEM')===op;});
+  if(!p||!p.resumo)return '<section class="card"><h2>Pendentes</h2><p class="hint">Rotas MANDALOG que exigem ação no GM7. Aguardando a primeira leitura…</p></section>';
+  var lim=Math.round(p.limite_h||24),al=Math.round(p.alerta_h||16),h='';
+  var todos=p.itens||[],op=S.opf||'TODAS',sit=S.sit||'TODAS';
+  var itens=todos.filter(function(i){return (op==='TODAS'||(i.operacao||'SEM')===op)&&bateSit(i,sit);});
   var r=contaPend(itens),R=contaPend(todos);
-  if(R.estouradas>0)h+='<div class="sla-banner" role="alert">⚠ '+R.estouradas+' rota'+(R.estouradas>1?'s':'')+' MANDALOG sem finalizar há mais de '+lim+' h — SLA estourado<small>Finalize no GM7Driver agora. A cobrança é por e-mail, com cópia ao gestor.</small></div>';
-  else if(R.total===0)h+='<div class="sla-ok">✔ Nenhuma rota MANDALOG pendente de finalização.</div>';
+  if(R.total===0)h+='<div class="sla-ok">✔ Nenhuma rota MANDALOG pendente de ação.</div>';
   var g=String(p.gerado||'');
-  h+='<section class="card"><h2>Pendentes de finalização</h2><p class="hint">Rotas MANDALOG que saíram de ontem em diante e ainda não foram finalizadas no GM7. Meta: finalizar em até '+lim+' horas. Atualizado em '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'.</p>'+
-    '<div class="chips" role="tablist">'+OPS.map(function(o){var c=o[0]==='TODAS'?R:contaPend(todos.filter(function(i){return (i.operacao||'SEM')===o[0];}));
+  h+='<section class="card"><h2>Pendentes de ação</h2><p class="hint">Rotas MANDALOG de ontem em diante. Meta do cliente: finalizar no mesmo dia da saída ('+lim+' h). Atualizado em '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'.</p>'+
+    '<div class="chips" role="tablist" aria-label="Operação">'+OPS.map(function(o){var base=todos.filter(function(i){return o[0]==='TODAS'||(i.operacao||'SEM')===o[0];}),c=contaPend(base);
       if(o[0]==='SEM'&&!c.total)return '';
       return '<button type="button" class="chip'+(op===o[0]?' on':'')+(c.estouradas?' red':'')+'" data-act="fop" data-op="'+o[0]+'" role="tab" aria-selected="'+(op===o[0])+'">'+o[1]+' <b>'+c.total+'</b>'+(c.estouradas?'<span class="dot">'+c.estouradas+' estour.</span>':'')+'</button>';}).join('')+'</div>'+
-    '<div class="kpis"><div class="kpi k-est"><b>'+r.estouradas+'</b><span>Estouradas (≥ '+lim+' h)</span></div>'+
+    '<div class="chips" role="tablist" aria-label="Situação">'+SITS.map(function(s){var base=todos.filter(function(i){return (op==='TODAS'||(i.operacao||'SEM')===op)&&bateSit(i,s[0]);});
+      return '<button type="button" class="chip sm'+(sit===s[0]?' on':'')+'" data-act="fsit" data-sit="'+s[0]+'" role="tab" aria-selected="'+(sit===s[0])+'">'+s[1]+' <b>'+base.length+'</b></button>';}).join('')+'</div>'+
+    '<div class="kpis"><div class="kpi k-est"><b>'+r.estouradas+'</b><span>Estouradas</span></div>'+
     '<div class="kpi k-ale"><b>'+r.alerta+'</b><span>Em alerta (≥ '+al+' h)</span></div>'+
     '<div class="kpi k-pra"><b>'+r.prazo+'</b><span>No prazo</span></div></div>';
-  if(!itens.length)return h+'<div class="empty">Nenhuma rota nesta operação.</div></section>';
+  if(!itens.length)return h+'<div class="empty">Nenhuma rota neste filtro.</div></section>';
   var cls={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},rot={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'},nop={SUMARE:'Sumaré',GRU_SJC:'GRU / SJC',SEM:'Sem operação'};
-  return h+'<div class="list">'+itens.map(function(i){var s=String(i.saida||'');
-    return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'<br><span class="opx">'+esc(nop[i.operacao||'SEM']||'')+'</span></span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · saiu '+esc(s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16))+' · '+rot[i.faixa]+(i.organizacao?' · '+esc(i.organizacao):'')+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
-}function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();}},20000);}
+  var tip={finalizar:'Falta finalizar',nao_iniciada:'Atrelada e não iniciada'};
+  return h+'<div class="list">'+itens.map(function(i){var s=String(i.saida||i.ref||'');
+    var sm=i.sem_movimento?'<span class="tag">Sem movimento</span>':'';
+    return '<div class="prow '+cls[i.faixa]+'"><span class="pl">'+esc(i.plano)+'<br><span class="opx">'+esc(nop[i.operacao||'SEM']||'')+'</span></span><span class="w"><b>'+esc(i.motorista||'—')+'</b> · '+esc(i.placa||'—')+' · '+(i.tipo==='nao_iniciada'?'saída prevista ':'saiu ')+esc(s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16))+'<br><span class="opx">'+esc(tip[i.tipo]||'')+' · '+rot[i.faixa]+(i.organizacao?' · '+esc(i.organizacao):'')+'</span> '+sm+'</span><span class="h">'+Math.round(i.horas)+' h</span></div>';}).join('')+'</div></section>';
+}
+/* ---------- indicadores (a partir do histórico guardado pelo robô) ---------- */
+function carregaHist(){
+  if(!S.pass)return;
+  fetch(HIST_URL+'?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.status===200?r.json():null;}).then(function(env){
+    if(!env){S.hist=null;render();return;}
+    return decrypt(env,S.pass).then(function(d){S.hist=d;render();},function(){});
+  }).catch(function(){});
+}
+function dtLocal(s){return new Date(String(s||'').replace(' ','T'));}
+function pct(n,d){return d?Math.round(n*1000/d)/10:null;}
+function metaCard(titulo,valor,txt,meta,ok){
+  var cls=valor===null?'':(ok?' m-ok':' m-bad');
+  return '<div class="mcard'+cls+'"><span class="mt">'+titulo+'</span><b>'+(valor===null?'—':txt)+'</b><span class="mm">Meta: '+meta+'</span></div>';}
+function indicadores(){
+  var H=S.hist;
+  if(!H||!H.rotas)return '<section class="card"><h2>Indicadores</h2><p class="hint">O histórico começa a ser montado a cada leitura do robô (de hora em hora). Volte aqui depois da próxima leitura.</p></section>';
+  var per=S.per||7,agora=new Date(),corte=new Date(agora.getTime()-per*86400000);
+  var recs=Object.keys(H.rotas).map(function(k){return H.rotas[k];}).filter(function(r){return dtLocal(r.ref)>=corte;});
+  var venc=recs.filter(function(r){return dtLocal(r.ref)<=new Date(agora.getTime()-24*3600000);});
+  var ok=venc.filter(function(r){return r.finalizada&&(r.final_h==null?!r.estourou:r.final_h<=24);});
+  var sla=pct(ok.length,venc.length);
+  var fin=recs.filter(function(r){return r.finalizada&&r.final_h!=null;});
+  var tempo=fin.length?Math.round(fin.reduce(function(a,r){return a+r.final_h;},0)/fin.length*10)/10:null;
+  var sm=pct(recs.filter(function(r){return r.ja_sem_movimento;}).length,recs.length);
+  var ni=recs.filter(function(r){return r.ja_nao_iniciada;}).length;
+  var est=S.pend&&S.pend.itens?contaPend(S.pend.itens).estouradas:0;
+  var h='<section class="card"><h2>Indicadores</h2><p class="hint">Rotas MANDALOG nos últimos '+per+' dias, a partir do histórico do robô. Meta do cliente: finalizar no mesmo dia da saída (24 h).</p>'+
+    '<div class="chips">'+[7,30].map(function(d){return '<button type="button" class="chip sm'+(per===d?' on':'')+'" data-act="per" data-per="'+d+'">Últimos '+d+' dias</button>';}).join('')+'</div>'+
+    '<div class="mgrid">'+
+      metaCard('SLA: finalizadas em até 24 h',sla,sla+'%','≥ '+METAS.sla+'%',sla!==null&&sla>=METAS.sla)+
+      metaCard('Tempo médio até finalizar',tempo,tempo+' h','≤ '+METAS.tempo+' h',tempo!==null&&tempo<=METAS.tempo)+
+      metaCard('Rotas sem movimento',sm,sm+'%','≤ '+METAS.semMov+'%',sm!==null&&sm<=METAS.semMov)+
+      metaCard('Atreladas e não iniciadas',recs.length?ni:null,ni+'','= '+METAS.naoIni,ni<=METAS.naoIni)+
+      metaCard('Estouradas abertas agora',S.pend?est:null,est+'','= '+METAS.estouradas,est<=METAS.estouradas)+
+      '<div class="mcard"><span class="mt">Rotas no período</span><b>'+recs.length+'</b><span class="mm">'+fin.length+' finalizadas</span></div>'+
+    '</div></section>';
+  /* tendência por dia */
+  var dias={};venc.forEach(function(r){var d=String(r.ref).slice(0,10);(dias[d]=dias[d]||{n:0,ok:0});dias[d].n++;if(r.finalizada&&(r.final_h==null?!r.estourou:r.final_h<=24))dias[d].ok++;});
+  var ks=Object.keys(dias).sort().slice(-14);
+  if(ks.length)h+='<section class="card"><h2>SLA por dia de saída</h2><div class="bars">'+ks.map(function(d){var v=Math.round(dias[d].ok*100/dias[d].n);
+    return '<div class="bar"><div class="bv" style="height:'+Math.max(4,v)+'%"><span>'+v+'%</span></div><small>'+esc(d.slice(8,10)+'/'+d.slice(5,7))+'<br>'+dias[d].n+' rotas</small></div>';}).join('')+'</div></section>';
+  /* por operação */
+  var nop={SUMARE:'Café Sumaré',GRU_SJC:'Café GRU / SJC',SEM:'Sem operação'};
+  var linhasOp=Object.keys(nop).map(function(op){var rr=recs.filter(function(r){return (r.operacao||'SEM')===op;});if(!rr.length)return '';
+    var v=rr.filter(function(r){return venc.indexOf(r)>=0;}),o=v.filter(function(r){return ok.indexOf(r)>=0;}),s=pct(o.length,v.length);
+    return '<div class="prow '+(s===null?'f-pra':(s>=METAS.sla?'f-pra':'f-est'))+'"><span class="pl">'+nop[op]+'</span><span class="w">'+rr.length+' rotas · '+rr.filter(function(r){return r.estourou;}).length+' estouraram · '+rr.filter(function(r){return r.ja_sem_movimento;}).length+' sem movimento · '+rr.filter(function(r){return r.ja_nao_iniciada;}).length+' não iniciadas</span><span class="h">'+(s===null?'—':s+'%')+'</span></div>';}).join('');
+  if(linhasOp)h+='<section class="card"><h2>Por operação</h2><div class="list">'+linhasOp+'</div></section>';
+  /* motoristas com dificuldade */
+  var mot={};recs.forEach(function(r){var m=r.motorista||'—';var x=(mot[m]=mot[m]||{n:0,est:0,sm:0,ni:0});x.n++;if(r.estourou)x.est++;if(r.ja_sem_movimento)x.sm++;if(r.ja_nao_iniciada)x.ni++;});
+  var rank=Object.keys(mot).map(function(m){var x=mot[m];return {m:m,n:x.n,est:x.est,sm:x.sm,ni:x.ni,p:x.est+x.sm+x.ni};}).filter(function(x){return x.p>0;}).sort(function(a,b){return b.p-a.p||b.n-a.n;}).slice(0,8);
+  h+='<section class="card"><h2>Motoristas com mais dificuldade</h2><p class="hint">Soma de ocorrências no período: estourou o prazo, ficou sem movimento ou não foi iniciada.</p>'+
+    (rank.length?'<div class="list">'+rank.map(function(x){return '<div class="prow f-est"><span class="pl">'+esc(x.m)+'</span><span class="w">'+x.n+' rota'+(x.n>1?'s':'')+' · '+x.est+' estourou · '+x.sm+' sem movimento · '+x.ni+' não iniciada</span><span class="h">'+x.p+'</span></div>';}).join('')+'</div>':'<div class="empty">Nenhuma ocorrência no período.</div>')+'</section>';
+  return h;
+}function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();carregaHist();}},20000);}
 
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
@@ -253,8 +346,7 @@ function render(){
     return;
   }
   var off=S.busy?' disabled':'';
-  root.innerHTML=header('<button class="hbtn" data-act="sair">Sair</button>')+
-    pendencias()+
+  var lanc=
     '<section class="card"><h2>Identificação</h2><p class="hint">Quem está lançando. Fica salvo neste navegador.</p><div class="grid">'+
       '<label>Seu nome<input id="pQuem" maxlength="40" autocomplete="off" value="'+esc(S.prog.quem)+'"></label>'+
       '<label>Senha de programação<input id="pSenha" type="password" autocomplete="off" value="'+esc(S.prog.senha)+'"></label></div></section>'+
@@ -281,7 +373,9 @@ function render(){
       '<form id="impForm"><div class="grid"><label>Nº do plano<input id="iPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
       '<div><button class="btn ghost" type="submit"'+off+'>Marcar NÃO EMITIR</button></div></div></form>'+
       (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
-    andamento()+
+    andamento();
+  var corpo=S.aba==='ind'?indicadores():(S.aba==='lanc'?lanc:pendencias());
+  root.innerHTML=header('<button class="hbtn" data-act="sair">Sair</button>')+bannerSLA()+abas()+corpo+
     '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>'+modalConflito();
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
   if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
@@ -293,6 +387,9 @@ function guarda(){var q=document.getElementById('pQuem'),s=document.getElementBy
 root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(!b)return;var ac=b.getAttribute('data-act');
   if(ac==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
   if(ac==='fop'){S.opf=b.getAttribute('data-op')||'TODAS';render();return;}
+  if(ac==='fsit'){S.sit=b.getAttribute('data-sit')||'TODAS';render();return;}
+  if(ac==='per'){S.per=parseInt(b.getAttribute('data-per'),10)||7;render();return;}
+  if(ac==='aba'){S.aba=b.getAttribute('data-aba')||'pend';lsSet(LS_ABA,S.aba);render();window.scrollTo(0,0);return;}
   if(ac==='manter'&&S.conflito){tratAdd(S.conflito.id);S.conflito=null;S.msg='Mantido como estava. Nada foi alterado.';S.msgOk=true;render();return;}
   if(ac==='sobrescrever'&&S.conflito&&S.conflito.conflito){var c=S.conflito.conflito;
     if(!S.prog.quem||!S.prog.senha){S.conflito=null;S.msg='Informe seu nome e a senha de programação e envie de novo.';S.msgOk=false;render();return;}
@@ -300,7 +397,7 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
     enviar('vincular',{plano:c.plano,motorista:c.motorista_pedido,placa:c.placa_pedida,sobrescrever:true},false);}});
 root.addEventListener('submit',function(ev){
   ev.preventDefault();var id=ev.target.id;
-  if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();carregaPend();agenda();return;}
+  if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();carregaPend();carregaHist();agenda();return;}
   guarda();
   if(id==='lancarForm'){
     var plano=document.getElementById('pPlano').value.trim(),mot=document.getElementById('pMot').value.trim(),placa=document.getElementById('pPlaca').value.trim().toUpperCase();
@@ -330,8 +427,8 @@ root.addEventListener('submit',function(ev){
     enviar('iniciar',{plano:p2},true);}
 });
 
-S.pass=lsGet(LS_PASS);
-if(S.pass){S.view='ok';render();carrega();carregaPend();agenda();}else render();
+S.pass=lsGet(LS_PASS);S.aba=lsGet(LS_ABA)||'pend';
+if(S.pass){S.view='ok';render();carrega();carregaPend();carregaHist();agenda();}else render();
 })();
 </script>
 </body>
