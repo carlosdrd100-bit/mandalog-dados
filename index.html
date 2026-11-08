@@ -501,7 +501,7 @@ function indicadores(){
 
 function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();carregaHist();}},20000);}
 
-/* ---------- relatorio diario (PDF / Excel), gerado no proprio navegador ---------- */
+/* ---------- relatorio (PDF / Excel): um dia ou um periodo, gerado no proprio navegador ---------- */
 var LIBS={pdf:['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
   xls:['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js']};
 var LIBP={};
@@ -511,34 +511,41 @@ function carregaLibs(k){return LIBS[k].reduce(function(p,u){return p.then(functi
 var REL_OPS=[['TODAS','Completo (todas as operações)'],['SUMARE','Café Sumaré'],['GRU','Café GRU'],['SJC','Café SJC']];
 var REL_ARQ={TODAS:'Completo',SUMARE:'Sumare',GRU:'GRU',SJC:'SJC'};
 function fmtDMA(iso){return String(iso).slice(8,10)+'/'+String(iso).slice(5,7)+'/'+String(iso).slice(0,4);}
+function fmtDM(iso){return String(iso).slice(8,10)+'/'+String(iso).slice(5,7);}
 function fmtDH(s){s=String(s||'');return s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16);}
-function nomeArq(D,op,ext){return 'Relatorio-Mandalog-'+D+'-'+(REL_ARQ[op]||op)+ext;}
+function isoMais(iso,n){var d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function rotuloData(d){return d.periodo?(fmtDM(d.D)+' a '+fmtDMA(d.D2)):fmtDMA(d.D);}
+function nomeArq(d,ext){return 'Relatorio-Mandalog-'+(d.periodo?d.D+'_a_'+d.D2:d.D)+'-'+(REL_ARQ[d.op]||d.op)+ext;}
 function primeiraRota(){var H=S.hist;if(!H||!H.rotas)return null;var m=null;Object.keys(H.rotas).forEach(function(k){var d=String(H.rotas[k].ref).slice(0,10);if(!m||d<m)m=d;});return m;}
 function sitLinha(tipo,faixa,sm){return (tipo==='nao_iniciada'?'Atrelada e não iniciada':'Falta finalizar')+' · '+(FROT[faixa]||'')+(sm?' · Sem movimento':'');}
-function relDados(D,op){
+function relDados(D,D2,op){
+  var periodo=!!(D2&&D2!==D);D2=periodo?D2:D;
   var H=S.hist,todas=H&&H.rotas?Object.keys(H.rotas).map(function(k){return H.rotas[k];}):[];
-  var sel=function(x){return op==='TODAS'||opDe(x)===op;},hoje=D===hojeISO(),agora=new Date();
-  var fim=new Date(Math.min(agora.getTime(),new Date(D+'T00:00:00').getTime()+86400000)),ini=new Date(fim.getTime()-7*86400000);
+  var sel=function(x){return op==='TODAS'||opDe(x)===op;},hoje=D2===hojeISO(),agora=new Date();
+  var fim=new Date(Math.min(agora.getTime(),new Date(D2+'T00:00:00').getTime()+86400000));
+  var ini=periodo?new Date(D+'T00:00:00'):new Date(fim.getTime()-7*86400000);
   var win=todas.filter(function(r){var t=dtLocal(r.ref);return t>=ini&&t<fim&&sel(r);});
   var cur=calcIx(win,fim),serie=serieDia(cur.venc);
-  var dia=todas.filter(function(r){return String(r.ref).slice(0,10)===D&&sel(r);});
+  var dia=todas.filter(function(r){var x=String(r.ref).slice(0,10);return x>=D&&x<=D2&&sel(r);});
   var ao_vivo=hoje&&S.pend&&S.pend.itens,linhas;
   if(ao_vivo){linhas=S.pend.itens.filter(sel).map(function(i){return {op:opDe(i),placa:i.placa||'',mot:i.motorista||'',plano:i.plano,saida:fmtDH(i.saida||i.ref),horas:i.horas,faixa:i.faixa,sit:sitLinha(i.tipo,i.faixa,i.sem_movimento)};});}
   else{linhas=dia.filter(function(r){return !r.finalizada;}).map(function(r){var h=r.horas_max||0,f=r.estourou?'estourada':(h>=16?'alerta':'prazo');
     return {op:opDe(r),placa:r.placa||'',mot:r.motorista||'',plano:r.plano,saida:fmtDH(r.ref),horas:h,faixa:f,sit:sitLinha(r.ultimo_tipo,f,r.ja_sem_movimento)};});}
   linhas.sort(function(a,b){return b.horas-a.horas;});
   var estAbertas=linhas.filter(function(l){return l.faixa==='estourada';}).length;
-  var rotasDia=dia.map(function(r){return {op:opDe(r),plano:r.plano,placa:r.placa||'',mot:r.motorista||'',saida:fmtDH(r.ref),
+  var rotasDia=dia.map(function(r){return {op:opDe(r),plano:r.plano,placa:r.placa||'',mot:r.motorista||'',saida:fmtDH(r.ref),ord:String(r.ref),
+    cor:r.estourou?'e':(r.finalizada?'o':'a'),
     sit:r.finalizada?('Finalizada'+(r.final_h!=null?' em '+fmt1(r.final_h)+' h':'')+(r.estourou?' (fora do SLA)':'')):('Aberta'+(r.estourou?' · estourada':'')),
-    horas:r.finalizada&&r.final_h!=null?r.final_h:(r.horas_max||0)};}).sort(function(a,b){return a.saida<b.saida?-1:1;});
-  return {D:D,op:op,hoje:hoje,aoVivo:!!ao_vivo,cur:cur,serie:serie,dia:dia,linhas:linhas,estAbertas:estAbertas,rotasDia:rotasDia,
+    horas:r.finalizada&&r.final_h!=null?r.final_h:(r.horas_max||0)};}).sort(function(a,b){return a.ord<b.ord?-1:1;});
+  var nFin=dia.filter(function(r){return r.finalizada;}).length;
+  return {D:D,D2:D2,periodo:periodo,op:op,hoje:hoje,aoVivo:!!ao_vivo,cur:cur,serie:serie,dia:dia,linhas:linhas,estAbertas:estAbertas,rotasDia:rotasDia,
     kpis:[
       ['SLA em 24 h',cur.sla===null?'—':fmt1(cur.sla)+'%','Meta ≥ '+METAS.sla+'%',cur.sla===null?null:cur.sla>=METAS.sla],
       ['Tempo médio até finalizar',cur.tempo===null?'—':fmt1(cur.tempo)+' h','Meta ≤ '+METAS.tempo+' h',cur.tempo===null?null:cur.tempo<=METAS.tempo],
       ['Rotas sem movimento',cur.sm===null?'—':fmt1(cur.sm)+'%','Meta ≤ '+METAS.semMov+'%',cur.sm===null?null:cur.sm<=METAS.semMov],
       ['Atreladas e não iniciadas',String(cur.ni),'Meta = '+METAS.naoIni,cur.ni<=METAS.naoIni],
       [ao_vivo?'Estouradas abertas agora':'Estouradas em aberto',String(estAbertas),'Meta = '+METAS.estouradas,estAbertas<=METAS.estouradas],
-      ['Saídas em '+D.slice(8,10)+'/'+D.slice(5,7),String(dia.length),dia.filter(function(r){return r.finalizada;}).length+' finalizadas · '+dia.filter(function(r){return !r.finalizada;}).length+' abertas',null]]};
+      [periodo?'Saídas no período':'Saídas em '+fmtDM(D),String(dia.length),nFin+' finalizadas · '+(dia.length-nFin)+' abertas',null]]};
 }
 function gerarPdf(d){
   return carregaLibs('pdf').then(function(){
@@ -547,15 +554,15 @@ function gerarPdf(d){
     var titOp=d.op==='TODAS'?'Completo (todas as operações)':(ABA_NOME[d.op]||d.op);
     doc.setFillColor(14,14,14);doc.rect(0,0,W,27,'F');doc.setFillColor(255,122,0);doc.rect(0,27,W,1.6,'F');
     doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text('Carregamentos Mandalog',M,12);
-    doc.setFontSize(10);doc.setTextColor(255,122,0);doc.text('Relatório diário de pendências e indicadores · '+titOp,M,19);
+    doc.setFontSize(10);doc.setTextColor(255,122,0);doc.text((d.periodo?'Relatório de fechamento do período':'Relatório diário de pendências e indicadores')+' · '+titOp,M,19);
     doc.setFontSize(8.5);doc.setTextColor(190,190,190);doc.setFont('helvetica','normal');doc.text('Rotas MANDALOG · meta do cliente: finalizar em até 24 h da saída',M,24);
-    doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text(fmtDMA(d.D),W-M,13,{align:'right'});
+    doc.setFont('helvetica','bold');doc.setFontSize(d.periodo?14:18);doc.setTextColor(255,255,255);doc.text(rotuloData(d),W-M,13,{align:'right'});
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(190,190,190);doc.text('Gerado em '+agoraTxt,W-M,19,{align:'right'});
-    doc.text(d.aoVivo?'Pendências: situação ao vivo':'Pendências: saídas do dia ainda abertas',W-M,24,{align:'right'});
+    doc.text(d.aoVivo?'Pendências: situação ao vivo':'Pendências: saídas ainda abertas',W-M,24,{align:'right'});
     y=35;
     doc.setTextColor(20,20,20);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Resumo executivo',M,y);
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);
-    doc.text('Indicadores dos 7 dias até '+d.D.slice(8,10)+'/'+d.D.slice(5,7)+' (o SLA considera as rotas com mais de 24 h de saída).',M,y+4.5);
+    doc.text((d.periodo?'Indicadores de '+fmtDM(d.D)+' a '+fmtDM(d.D2):'Indicadores dos 7 dias até '+fmtDM(d.D))+' (o SLA considera as rotas com mais de 24 h de saída).',M,y+4.5);
     y+=8;var cw=(W-2*M-8)/3,ch=21;
     d.kpis.forEach(function(k,i){var x=M+(i%3)*(cw+4),yy=y+Math.floor(i/3)*(ch+4);
       var cor=k[3]===null?[238,125,34]:(k[3]?[20,128,63]:[180,37,37]);
@@ -571,12 +578,12 @@ function gerarPdf(d){
     doc.setDrawColor(225,228,235);doc.setLineWidth(.2);doc.setFontSize(7);doc.setTextColor(120,120,120);
     [0,50,100].forEach(function(g){var yy=gy+gh-gh*g/100;doc.line(gx,yy,gx+gw,yy);doc.text(g+'%',gx-1.5,yy+1,{align:'right'});});
     if(!d.serie.length){doc.setFontSize(9);doc.setTextColor(110,110,110);doc.text('Ainda não há rotas com mais de 24 h de saída neste período.',gx+gw/2,gy+gh/2,{align:'center'});}
-    else{var n=d.serie.length,slot=gw/n,bw=Math.min(14,slot*.62);
+    else{var n=d.serie.length,slot=gw/n,bw=Math.min(14,slot*.62),passo=n>14?Math.ceil(n/14):1;
       d.serie.forEach(function(p,i){var x=gx+slot*i+slot/2,h=gh*p.v/100,c=p.v>=METAS.sla?[20,128,63]:(p.v>=METAS.sla-15?[238,125,34]:[200,50,40]);
         doc.setFillColor(c[0],c[1],c[2]);doc.rect(x-bw/2,gy+gh-h,bw,Math.max(.6,h),'F');
-        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(40,40,40);doc.text(Math.round(p.v)+'%',x,gy+gh-h-1,{align:'center'});
-        doc.setFont('helvetica','normal');doc.setTextColor(110,110,110);doc.text(p.d.slice(8,10)+'/'+p.d.slice(5,7),x,gy+gh+4,{align:'center'});
-        doc.setFontSize(6);doc.text(p.n+' rota'+(p.n>1?'s':''),x,gy+gh+7,{align:'center'});doc.setFontSize(7);});}
+        if(n<=16){doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(40,40,40);doc.text(Math.round(p.v)+'%',x,gy+gh-h-1,{align:'center'});}
+        if(i%passo===0){doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(110,110,110);doc.text(fmtDM(p.d),x,gy+gh+4,{align:'center'});
+          doc.setFontSize(6);doc.text(p.n+' rota'+(p.n>1?'s':''),x,gy+gh+7,{align:'center'});}});}
     var ym=gy+gh-gh*METAS.sla/100;doc.setDrawColor(238,125,34);doc.setLineWidth(.4);doc.setLineDashPattern([1.6,1.2],0);doc.line(gx,ym,gx+gw,ym);doc.setLineDashPattern([],0);
     y=gy+gh+13;
     function titulo(t,cor){if(y>262){doc.addPage();y=16;}doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(cor[0],cor[1],cor[2]);doc.text(t,M,y);y+=3;}
@@ -592,53 +599,80 @@ function gerarPdf(d){
     doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(20,20,20);if(y>255){doc.addPage();y=16;}
     doc.text('Pendências para cobrança · '+d.linhas.length,M,y);y+=2;
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);
-    doc.text(d.aoVivo?'Rotas MANDALOG abertas agora, das mais críticas para as menos críticas. Vermelho = estourada; amarelo = em alerta.':'Rotas que saíram em '+fmtDMA(d.D)+' e ainda não foram finalizadas.',M,y+3.5);y+=8;
-    if(!d.linhas.length){doc.setFontSize(10);doc.setTextColor(20,128,63);doc.setFont('helvetica','bold');doc.text('Nenhuma pendência para esta data.',M,y+3);y+=8;}
+    doc.text(d.aoVivo?'Rotas MANDALOG abertas agora, das mais críticas para as menos críticas. Vermelho = estourada; amarelo = em alerta.':'Rotas que saíram '+(d.periodo?'entre '+fmtDMA(d.D)+' e '+fmtDMA(d.D2):'em '+fmtDMA(d.D))+' e ainda não foram finalizadas.',M,y+3.5);y+=8;
+    if(!d.linhas.length){doc.setFontSize(10);doc.setTextColor(20,128,63);doc.setFont('helvetica','bold');doc.text('Nenhuma pendência para este período.',M,y+3);y+=8;}
     else if(d.op==='TODAS'){['SUMARE','GRU','SJC','SEM'].forEach(function(o){var ls=d.linhas.filter(function(l){return l.op===o;});if(!ls.length)return;
       titulo((ABA_NOME[o]||NOP[o])+' · '+ls.length+' pendência'+(ls.length>1?'s':'')+' · '+ls.filter(function(l){return l.faixa==='estourada';}).length+' estourada(s)',[200,90,0]);tabela(ls);});}
     else{tabela(d.linhas);}
+    if(d.periodo){   /* fechamento: historico completo das rotas do periodo */
+      if(y>250){doc.addPage();y=16;}
+      doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(20,20,20);doc.text('Histórico de rotas do período · '+d.rotasDia.length,M,y);y+=2;
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(110,110,110);doc.text('Todas as rotas que saíram de '+fmtDMA(d.D)+' a '+fmtDMA(d.D2)+'. Vermelho = fora do SLA; amarelo = ainda aberta.',M,y+3.5);y+=6;
+      if(!d.rotasDia.length){doc.setFontSize(10);doc.text('Sem rotas no histórico neste período.',M,y+4);y+=8;}
+      else doc.autoTable({startY:y,margin:{left:M,right:M},theme:'grid',
+        head:[['Saída','Operação','Placa','Motorista','Plano','Situação','Horas']],
+        body:d.rotasDia.map(function(l){return [l.saida,NOP[l.op]||l.op,l.placa||'—',l.mot||'—',l.plano,l.sit,Math.round(l.horas*10)/10+' h'];}),
+        styles:{fontSize:7.5,cellPadding:1.4,lineColor:[216,220,230],lineWidth:.1,textColor:[30,30,30]},
+        headStyles:{fillColor:[14,14,14],textColor:[255,122,0],fontStyle:'bold'},
+        columnStyles:{0:{cellWidth:22},1:{cellWidth:18},2:{cellWidth:20,fontStyle:'bold'},3:{cellWidth:38},4:{cellWidth:22},5:{cellWidth:'auto'},6:{cellWidth:14,halign:'right'}},
+        didParseCell:function(h){if(h.section==='body'){var c=d.rotasDia[h.row.index].cor;if(c==='e')h.cell.styles.fillColor=[253,230,227];else if(c==='a')h.cell.styles.fillColor=[255,244,214];}}});
+    }
     var pg=doc.getNumberOfPages();
     for(var p=1;p<=pg;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(140,140,140);
       doc.text('Mandalog · painel de carregamentos · dados do GM7Driver · gerado em '+agoraTxt,M,290);doc.text('Página '+p+' de '+pg,W-M,290,{align:'right'});}
-    doc.save(nomeArq(d.D,d.op,'.pdf'));
+    doc.save(nomeArq(d,'.pdf'));
   });
 }
 function gerarXlsx(d){
   return carregaLibs('xls').then(function(){
     var X=window.XLSX,wb=X.utils.book_new(),titOp=d.op==='TODAS'?'Completo':(ABA_NOME[d.op]||d.op);
-    var res=[['Relatório diário Mandalog'],['Data',fmtDMA(d.D)],['Operação',titOp],['Gerado em',new Date().toLocaleString('pt-BR')],
-      [d.aoVivo?'Pendências':'Pendências (saídas do dia ainda abertas)',d.aoVivo?'situação ao vivo':fmtDMA(d.D)],[],['Indicador (7 dias até a data)','Valor','Meta','Status']];
+    var res=[['Relatório Mandalog'+(d.periodo?' · fechamento do período':' · diário')],[d.periodo?'Período':'Data',rotuloData(d)],['Operação',titOp],['Gerado em',new Date().toLocaleString('pt-BR')],
+      ['Pendências',d.aoVivo?'situação ao vivo':'saídas ainda abertas'],[],[d.periodo?'Indicador (no período)':'Indicador (7 dias até a data)','Valor','Meta','Status']];
     d.kpis.forEach(function(k){res.push([k[0],k[1],k[2],k[3]===null?'':(k[3]?'Na meta':'Fora da meta')]);});
     res.push([],['SLA por dia de saída','','','']);res.push(['Dia','Rotas vencidas','No prazo','SLA %']);
     d.serie.forEach(function(p){res.push([fmtDMA(p.d),p.n,p.ok,p.v]);});
-    var ws1=X.utils.aoa_to_sheet(res);ws1['!cols']=[{wch:38},{wch:16},{wch:22},{wch:16}];X.utils.book_append_sheet(wb,ws1,'Resumo');
+    var ws1=X.utils.aoa_to_sheet(res);ws1['!cols']=[{wch:38},{wch:20},{wch:22},{wch:16}];X.utils.book_append_sheet(wb,ws1,'Resumo');
     var pend=[['Operação','Placa','Motorista','Plano','Saída','Horas em aberto','Situação']];
     d.linhas.forEach(function(l){pend.push([NOP[l.op]||l.op,l.placa,l.mot,l.plano,l.saida,Math.round(l.horas),l.sit]);});
     var ws2=X.utils.aoa_to_sheet(pend);ws2['!cols']=[{wch:12},{wch:11},{wch:30},{wch:14},{wch:14},{wch:15},{wch:42}];ws2['!autofilter']={ref:'A1:G'+pend.length};X.utils.book_append_sheet(wb,ws2,'Pendências');
     var rd=[['Operação','Plano','Placa','Motorista','Saída','Situação','Horas']];
     d.rotasDia.forEach(function(l){rd.push([NOP[l.op]||l.op,l.plano,l.placa,l.mot,l.saida,l.sit,Math.round(l.horas*10)/10]);});
-    var ws3=X.utils.aoa_to_sheet(rd);ws3['!cols']=[{wch:12},{wch:14},{wch:11},{wch:30},{wch:14},{wch:34},{wch:9}];ws3['!autofilter']={ref:'A1:G'+rd.length};X.utils.book_append_sheet(wb,ws3,'Rotas do dia');
-    X.writeFile(wb,nomeArq(d.D,d.op,'.xlsx'));
+    var ws3=X.utils.aoa_to_sheet(rd);ws3['!cols']=[{wch:12},{wch:14},{wch:11},{wch:30},{wch:14},{wch:34},{wch:9}];ws3['!autofilter']={ref:'A1:G'+rd.length};X.utils.book_append_sheet(wb,ws3,d.periodo?'Rotas do período':'Rotas do dia');
+    X.writeFile(wb,nomeArq(d,'.xlsx'));
   });
 }
+function relNovo(){var hj=hojeISO();return {modo:'dia',data:hj,de:isoMais(hj,-6),ate:hj,op:S.opf&&S.opf!=='TODAS'&&REL_ARQ[S.opf]?S.opf:'TODAS',msg:'',ok:false,busy:false};}
+function relLeCampos(){var R=S.rel;if(!R)return;['relData:data','relDe:de','relAte:ate'].forEach(function(p){var a=p.split(':'),e=document.getElementById(a[0]);if(e&&e.value)R[a[1]]=e.value;});}
+/* semana de segunda a domingo: atual=true -> da segunda desta semana ate hoje; atual=false -> a semana anterior inteira */
+function semanaSeg(atual){var d=new Date();var dow=(d.getDay()+6)%7;   /* segunda=0 */
+  var seg=new Date(d.getFullYear(),d.getMonth(),d.getDate()-dow-(atual?0:7)),fim=atual?d:new Date(seg.getFullYear(),seg.getMonth(),seg.getDate()+6);
+  function f(x){return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}return [f(seg),f(fim)];}
 function modalRel(){
-  var R=S.rel;if(!R)return '';var pr=primeiraRota(),hj=hojeISO();
-  return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="rlT"><div class="modal-box rel"><h2 id="rlT">Relatório diário</h2>'+
-    '<p class="hint">Gera o arquivo aqui no navegador, para você enviar no grupo. Traz os indicadores e a lista de cobrança das rotas que saíram na data escolhida.</p>'+
-    '<label>Data de saída<input id="relData" type="date" value="'+esc(R.data)+'" max="'+hj+'"'+(pr?' min="'+esc(pr)+'"':'')+'></label>'+
-    (pr?'<p class="hint" style="margin:6px 0 0">Histórico disponível a partir de '+esc(fmtDMA(pr))+'.</p>':'')+
+  var R=S.rel;if(!R)return '';var pr=primeiraRota(),hj=hojeISO(),per=R.modo==='periodo';
+  var campos=per?
+    '<div class="grid" style="grid-template-columns:1fr 1fr"><label>De<input id="relDe" type="date" value="'+esc(R.de)+'" max="'+hj+'"></label><label>Até<input id="relAte" type="date" value="'+esc(R.ate)+'" max="'+hj+'"></label></div>'+
+    '<div class="chips" style="margin-top:8px"><button type="button" class="chip sm" data-act="relpreset" data-p="7">Últimos 7 dias</button><button type="button" class="chip sm" data-act="relpreset" data-p="semana">Esta semana (seg até hoje)</button><button type="button" class="chip sm" data-act="relpreset" data-p="semanaant">Semana anterior (seg a dom)</button><button type="button" class="chip sm" data-act="relpreset" data-p="30">Últimos 30 dias</button></div>':
+    '<label>Data de saída<input id="relData" type="date" value="'+esc(R.data)+'" max="'+hj+'"></label>';
+  return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="rlT"><div class="modal-box rel"><h2 id="rlT">Relatório</h2>'+
+    '<p class="hint">Gera o arquivo aqui no navegador, para você enviar no grupo. Traz os indicadores e a lista de cobrança das rotas que saíram na data (ou no período) escolhido.</p>'+
+    '<div class="chips" role="radiogroup" aria-label="Tipo"><button type="button" class="chip sm'+(!per?' on':'')+'" data-act="relmodo" data-m="dia" role="radio" aria-checked="'+(!per)+'">Um dia</button><button type="button" class="chip sm'+(per?' on':'')+'" data-act="relmodo" data-m="periodo" role="radio" aria-checked="'+per+'">Período (fechamento)</button></div>'+
+    '<div style="margin-top:10px">'+campos+'</div>'+
+    (pr?'<p class="hint" style="margin:6px 0 0">Histórico guardado pelo robô a partir de '+esc(fmtDMA(pr))+'. Dias sem rotas aparecem vazios.</p>':'')+
     '<div class="chips" style="margin-top:12px" role="radiogroup" aria-label="Operação">'+REL_OPS.map(function(o){return '<button type="button" class="chip sm'+(R.op===o[0]?' on':'')+'" data-act="relop" data-op="'+o[0]+'" role="radio" aria-checked="'+(R.op===o[0])+'">'+o[1]+'</button>';}).join('')+'</div>'+
     (R.msg?'<p class="msg'+(R.ok?' ok':(R.busy?'':' bad'))+'" role="status">'+esc(R.msg)+'</p>':'')+
     '<div class="acoes"><button class="btn" data-act="relpdf"'+(R.busy?' disabled':'')+'>⬇ Baixar PDF</button><button class="btn ghost" data-act="relxls"'+(R.busy?' disabled':'')+'>⬇ Baixar Excel</button><button class="btn ghost" data-act="relfecha">Fechar</button></div></div></div>';}
 function relGerar(tipo){
-  var R=S.rel;if(!R||R.busy)return;var inp=document.getElementById('relData');if(inp&&inp.value)R.data=inp.value;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(R.data)){R.msg='Escolha a data.';R.ok=false;render();return;}
-  if(R.data>hojeISO()){R.msg='A data não pode ser futura.';R.ok=false;render();return;}
-  if(!S.hist&&!S.pend){R.msg='Os dados ainda não carregaram. Aguarde alguns segundos e tente de novo.';R.ok=false;render();return;}
-  var d=relDados(R.data,R.op);
-  if(!d.hoje&&!d.dia.length){R.msg='Não há rotas com saída em '+fmtDMA(R.data)+' no histórico'+(R.op==='TODAS'?'':' desta operação')+'. Escolha outra data.';R.ok=false;render();return;}
+  var R=S.rel;if(!R||R.busy)return;relLeCampos();var hj=hojeISO(),per=R.modo==='periodo',ini=per?R.de:R.data,fim=per?R.ate:R.data,re=/^\d{4}-\d{2}-\d{2}$/;
+  function erro(m){R.msg=m;R.ok=false;render();}
+  if(!re.test(ini)||!re.test(fim))return erro(per?'Escolha as duas datas.':'Escolha a data.');
+  if(fim>hj)return erro('A data não pode ser futura.');
+  if(ini>fim)return erro('A data inicial é depois da final. Troque as datas.');
+  if(per&&isoMais(ini,60)<fim)return erro('O período máximo é de 60 dias (é o que o histórico guarda).');
+  if(!S.hist&&!S.pend)return erro('Os dados ainda não carregaram. Aguarde alguns segundos e tente de novo.');
+  var d=relDados(ini,fim,R.op);
+  if(!d.hoje&&!d.dia.length)return erro('Não há rotas com saída '+(per?'entre '+fmtDMA(ini)+' e '+fmtDMA(fim):'em '+fmtDMA(ini))+' no histórico'+(R.op==='TODAS'?'':' desta operação')+'. O robô só guarda a partir da data indicada acima.');
   R.busy=true;R.ok=false;R.msg='Gerando o '+(tipo==='pdf'?'PDF':'Excel')+'…';render();
-  (tipo==='pdf'?gerarPdf(d):gerarXlsx(d)).then(function(){R.busy=false;R.ok=true;R.msg='Arquivo gerado: '+nomeArq(d.D,d.op,tipo==='pdf'?'.pdf':'.xlsx')+'. Veja a pasta de downloads.';render();},
+  (tipo==='pdf'?gerarPdf(d):gerarXlsx(d)).then(function(){R.busy=false;R.ok=true;R.msg='Arquivo gerado: '+nomeArq(d,tipo==='pdf'?'.pdf':'.xlsx')+'. Veja a pasta de downloads.';render();},
     function(e){R.busy=false;R.ok=false;R.msg=(e&&e.message)||'Não consegui gerar o arquivo.';render();});
 }
 /* ---------- envio ---------- */
@@ -731,9 +765,13 @@ function render(){
 function guarda(){var q=document.getElementById('pQuem'),s=document.getElementById('pSenha');if(q)S.prog.quem=q.value.trim();if(s)S.prog.senha=s.value;progSet();}
 root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(!b)return;var ac=b.getAttribute('data-act');
   if(ac==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
-  if(ac==='relabre'){var o0=S.opf&&S.opf!=='TODAS'&&REL_ARQ[S.opf]?S.opf:'TODAS';S.rel={data:hojeISO(),op:o0,msg:'',ok:false,busy:false};render();return;}
+  if(ac==='relabre'){S.rel=relNovo();render();return;}
   if(ac==='relfecha'){S.rel=null;render();return;}
-  if(ac==='relop'&&S.rel){var di=document.getElementById('relData');if(di&&di.value)S.rel.data=di.value;S.rel.op=b.getAttribute('data-op')||'TODAS';S.rel.msg='';render();return;}
+  if(ac==='relop'&&S.rel){relLeCampos();S.rel.op=b.getAttribute('data-op')||'TODAS';S.rel.msg='';render();return;}
+  if(ac==='relmodo'&&S.rel){relLeCampos();S.rel.modo=b.getAttribute('data-m')==='periodo'?'periodo':'dia';S.rel.msg='';render();return;}
+  if(ac==='relpreset'&&S.rel){var pp=b.getAttribute('data-p'),hj0=hojeISO();
+    if(pp==='semana'||pp==='semanaant'){var sw=semanaSeg(pp==='semana');S.rel.de=sw[0];S.rel.ate=sw[1];}else{S.rel.ate=hj0;S.rel.de=isoMais(hj0,-(parseInt(pp,10)-1));}
+    S.rel.msg='';render();return;}
   if(ac==='relpdf'){relGerar('pdf');return;}
   if(ac==='relxls'){relGerar('xls');return;}
   if(ac==='sel'){seleciona(b.getAttribute('data-plano'),true);return;}
@@ -747,7 +785,7 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
     if(!S.prog.quem||!S.prog.senha){S.conflito=null;S.msg='Informe seu nome e a senha de programação e envie de novo.';S.msgOk=false;render();return;}
     tratAdd(S.conflito.id);S.conflito=null;
     enviar('vincular',{plano:c.plano,motorista:c.motorista_pedido,placa:c.placa_pedida,sobrescrever:true},false);}});
-root.addEventListener('change',function(ev){if(ev.target.id==='relData'&&S.rel){S.rel.data=ev.target.value;S.rel.msg='';}});
+root.addEventListener('change',function(ev){if(S.rel&&/^rel(Data|De|Ate)$/.test(ev.target.id||'')){relLeCampos();S.rel.msg='';}});
 root.addEventListener('submit',function(ev){
   ev.preventDefault();var id=ev.target.id;
   if(id==='gateForm'){var v=document.getElementById('pw').value;if(!v)return;S.pass=v;S.err='';lsSet(LS_PASS,v);S.view='ok';render();carrega();carregaPend();carregaHist();agenda();return;}
