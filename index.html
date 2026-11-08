@@ -239,7 +239,19 @@ textarea.mono,.hint .mono{font-family:var(--f-mono)}
 body.cc .gate{margin-top:40px}
 body.cc .list .row{border-top-color:var(--line)}
 @media (max-width:900px){.lc-cols{grid-template-columns:1fr}}
-.rel-btn{margin-left:auto;min-height:38px;padding:6px 16px}
+.rel-btn{min-height:38px;padding:6px 16px}
+.cc-acoes{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.atu-btn{min-height:38px;padding:6px 14px}
+.gira{display:inline-block;animation:giro 1s linear infinite}@keyframes giro{to{transform:rotate(360deg)}}
+.upd{flex-basis:100%;font-size:11.5px;color:var(--ink-2);margin-top:-2px}.upd b{color:var(--ink);font-variant-numeric:tabular-nums}
+.upd .o{color:var(--ok)}.upd .w{color:var(--warn)}.upd .e{color:var(--bad)}
+.cp{border:1px solid var(--line);background:#161616;color:var(--ink-2);border-radius:6px;padding:0 7px;min-width:26px;height:22px;font-size:13px;line-height:1;cursor:pointer;vertical-align:middle}
+.cp:hover{border-color:var(--or);color:var(--or)}.cp.ok{border-color:var(--ok);color:var(--ok)}
+.pn{font-family:var(--f-mono);font-weight:600;color:var(--or);letter-spacing:.01em}
+body.cc .chip b{font-family:var(--f-display);font-size:18px;font-weight:700;letter-spacing:-.02em;color:var(--or);background:transparent;padding:0 1px;line-height:1}
+body.cc .chip.on b{color:#0A0A0A;background:transparent}
+body.cc .chip.red:not(.on) b{color:var(--bad)}
+@media (prefers-reduced-motion:reduce){.gira{animation:none}}
 .modal-box.rel{border-color:var(--or)}.modal-box.rel h2{color:var(--or)}
 @media (max-width:900px){.ix-rk{grid-template-columns:1fr}.ixk b{font-size:48px}.ix-nota{margin-left:0}}
 @media (max-width:900px){.cc-main{grid-template-columns:1fr;height:auto}.cc-map{height:58vh;flex:none}.cc-list{max-height:none}.cc-kpis{grid-template-columns:repeat(2,1fr)}}
@@ -358,6 +370,41 @@ function itensFiltrados(){var p=S.pend;if(!p||!p.itens)return [];var op=S.opf||'
 function fmtSaida(i){var s=String(i.saida||i.ref||'');return s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16);}
 function fonteTxt(pos){if(!pos)return 'sem posição';
   return pos.fonte==='parada'?('última parada com chegada'+(pos.local?' ('+pos.local+')':'')):(pos.fonte==='origem'?'saída do CD':'CD (posição aproximada)');}
+/* ---------- atualizar: recarrega a tela e pede uma leitura nova do GM7 ao robo ---------- */
+function minAtras(g){return Math.round((Date.now()-dtLocal(g).getTime())/60000);}
+function txtIdade(g){var m=minAtras(g);return m<1?'agora':(m<60?'há '+m+' min':(m<1440?'há '+Math.floor(m/60)+' h '+(m%60)+' min':'há mais de 1 dia'));}
+function updHtml(){
+  var g=S.pend&&S.pend.gerado,hoje=g&&String(g).slice(0,10)===hojeISO();
+  var base=g?('Última atualização automática do robô: <b>'+esc(hoje?String(g).slice(11,16):String(g).slice(8,10)+'/'+String(g).slice(5,7)+' '+String(g).slice(11,16))+'</b> ('+txtIdade(g)+')'):'Aguardando a primeira leitura do robô';
+  var st=S.atu&&S.atu.msg?' · <span class="'+(S.atu.cls||'')+'">'+esc(S.atu.msg)+'</span>':'';
+  return '<span class="upd" role="status">'+base+st+'</span>';
+}
+function pararAtu(){if(S.atu&&S.atu.timer){clearInterval(S.atu.timer);S.atu.timer=null;}}
+function pedirAtualizacao(){
+  if(S.atu&&S.atu.busy)return;
+  var antes=(S.pend&&S.pend.gerado)||'';
+  carrega();carregaPend();carregaHist();   /* 1) a tela pega agora o ultimo resultado que o robo gravou */
+  if(!S.prog.quem||!S.prog.senha){S.atu={busy:false,cls:'w',msg:'Tela atualizada. Para pedir leitura nova ao robô, informe seu nome e a senha de programação na aba Lançamentos.'};render();return;}
+  S.atu={busy:true,cls:'',msg:'pedindo leitura nova ao robô…',antes:antes,t0:Date.now(),timer:null};render();
+  fetch(WORKER_URL.replace(/\/$/,'')+'/acao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'atualizar',id:novoId(),senha:S.prog.senha,quem:S.prog.quem})})
+    .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
+    .then(function(x){
+      if(!(x.j&&x.j.ok)){S.atu={busy:false,cls:'e',msg:'não foi possível pedir ao robô: '+((x.j&&x.j.erro)||('HTTP '+x.s))};render();return;}
+      S.atu.msg='o robô está lendo o GM7 (leva cerca de 1 min)…';render();
+      S.atu.timer=setInterval(function(){
+        carregaPend();
+        var a=S.atu;if(!a)return;
+        if(S.pend&&S.pend.gerado&&S.pend.gerado!==a.antes){pararAtu();S.atu={busy:false,cls:'o',msg:'atualizado às '+String(S.pend.gerado).slice(11,16)};render();return;}
+        if(Date.now()-a.t0>6*60000){pararAtu();S.atu={busy:false,cls:'w',msg:'o robô ainda não respondeu; tente de novo em instantes'};render();}
+      },8000);})
+    .catch(function(){S.atu={busy:false,cls:'e',msg:'não consegui falar com o robô agora'};render();});
+}
+/* copiar o numero do plano para a area de transferencia */
+function copiar(v,btn){
+  function ok(){var o=btn.textContent;btn.textContent='✓';btn.classList.add('ok');setTimeout(function(){btn.textContent=o;btn.classList.remove('ok');},1300);}
+  function fb(){var t=document.createElement('textarea');t.value=v;t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);t.select();try{document.execCommand('copy');ok();}catch(e){}document.body.removeChild(t);}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(ok,fb);else fb();
+}
 function pendencias(){
   var p=S.pend;
   if(!p||!p.resumo)return '<section class="card"><h2>Pendentes</h2><p class="hint">Rotas MANDALOG que exigem ação no GM7. Aguardando a primeira leitura…</p></section>';
@@ -372,19 +419,20 @@ function pendencias(){
     var tags=(i.sem_movimento?'<span class="tag">Sem movimento</span> ':'')+(i.divergente?'<span class="tag" title="A planilha e o CD do GM7 apontam operações diferentes">Operação divergente</span> ':'')+(i.inferida?'<span class="tag" title="A planilha não tem este plano; assumido GRU (CD Guarulhos). Confirme na planilha">Operação assumida: GRU</span>':'');
     return '<div class="vc '+FCLS[i.faixa]+(S.sel===i.plano?' sel':'')+'" data-act="sel" data-plano="'+esc(i.plano)+'" tabindex="0">'+
       '<span class="pt">'+esc(i.placa||'SEM PLACA')+'</span><span class="h">'+Math.round(i.horas)+' h</span>'+
-      '<span class="w"><b>'+esc(i.motorista||'—')+'</b> · plano '+esc(i.plano)+'<br><span class="opx">'+esc(NOP[opDe(i)]||'')+' · '+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+'</span> '+tags+
+      '<span class="w"><b>'+esc(i.motorista||'—')+'</b> · plano <span class="pn">'+esc(i.plano)+'</span> <button type="button" class="cp" data-act="copia" data-v="'+esc(i.plano)+'" title="Copiar número do plano" aria-label="Copiar número do plano">⧉</button><br><span class="opx">'+esc(NOP[opDe(i)]||'')+' · '+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+'</span> '+tags+
       '<br><span class="opx">'+(i.tipo==='nao_iniciada'?'saída prevista ':'saiu ')+esc(fmtSaida(i))+' · '+esc(fonteTxt(i.pos))+'</span></span></div>';}).join('');
   var cfN=confItens(op).length,vazioCf='';
   if(sit==='conferencia'){
     cards=confItens(op).map(function(x){var hj=x.dia==='hoje';
-      return '<div class="vc cf '+(hj?'f-est':'f-ale')+'"><span class="pt">'+esc(x.plano)+'</span><span class="h">'+(hj?'HOJE':'AMANHÃ')+'</span>'+
+      return '<div class="vc cf '+(hj?'f-est':'f-ale')+'"><span class="pt">'+esc(x.plano)+' <button type="button" class="cp" data-act="copia" data-v="'+esc(x.plano)+'" title="Copiar número do plano" aria-label="Copiar número do plano">⧉</button></span><span class="h">'+(hj?'HOJE':'AMANHÃ')+'</span>'+
         '<span class="w"><b>'+esc(CF_ROT[x.tipo]||x.tipo)+'</b> · '+esc(NOP[opDe(x)]||'')+'<br><span class="opx">'+esc(x.detalhe||'')+'</span>'+
         '<br><span class="opx">'+(x.tipo==='fora_da_planilha'?'lançar na planilha agora':(hj?'corrigir agora':'corrigir antes da saída'))+(x.motorista?' · '+esc(x.motorista):'')+'</span></span></div>';}).join('');
     vazioCf=confOk()?'✔ Nenhuma divergência entre a planilha e o GM7 (hoje e amanhã).':'A conferência não pôde ser feita nesta leitura (a planilha não respondeu). Tente na próxima atualização.';
   }
   return '<div class="cc-main"><section class="cc-left">'+
     '<div class="cc-bar"><div class="chips" role="tablist" aria-label="Operação">'+chipsOp+'</div><div class="chips" role="tablist" aria-label="Situação">'+chipsSit+'</div>'+
-      '<button type="button" class="btn rel-btn" data-act="relabre" title="Gerar relatório em PDF ou Excel">⬇ Relatório</button></div>'+
+      '<div class="cc-acoes"><button type="button" class="btn ghost atu-btn" data-act="atualizar"'+(S.atu&&S.atu.busy?' disabled':'')+' title="Recarrega a tela e pede ao robô uma leitura nova do GM7">'+(S.atu&&S.atu.busy?'<span class="gira">↻</span> Atualizando…':'↻ Atualizar')+'</button>'+
+        '<button type="button" class="btn rel-btn" data-act="relabre" title="Gerar relatório em PDF ou Excel">⬇ Relatório</button></div>'+updHtml()+'</div>'+
     '<div class="cc-kpis"><div class="cc-kpi k1"><b>'+r.estouradas+'</b><span>Fora do prazo (&gt; '+lim+' h)</span></div><div class="cc-kpi k2"><b>'+r.alerta+'</b><span>Em alerta</span></div>'+
     '<div class="cc-kpi k3"><b>'+r.prazo+'</b><span>No prazo</span></div><div class="cc-kpi k4"><b>'+r.semMov+'</b><span>Sem movimento</span></div>'+
     '<div class="cc-kpi k5"><b>'+(confOk()?cfN:'–')+'</b><span>Conferência planilha × GM7</span></div></div>'+
@@ -414,7 +462,7 @@ function atualizaMapa(){
   var its=itensFiltrados(),pos=posicoes(its),pts=[];
   its.forEach(function(i){var c=pos[i.plano];if(!c)return;pts.push(c);
     var m=L.marker(c,{icon:L.divIcon({className:'pinw',html:pinHtml(i,S.sel===i.plano),iconSize:[0,0]}),riseOnHover:true}).addTo(CAMADA);
-    m.bindPopup('<b>'+esc(i.placa||'sem placa')+'</b><br>'+esc(i.motorista||'—')+'<br>Plano '+esc(i.plano)+'<br>'+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+' · '+Math.round(i.horas)+' h<br><span style="color:#A89F96">'+esc(fonteTxt(i.pos))+(i.pos&&i.pos.paradas?' · '+i.pos.feitas+'/'+i.pos.paradas+' paradas':'')+'</span>');
+    m.bindPopup('<b>'+esc(i.placa||'sem placa')+'</b><br>'+esc(i.motorista||'—')+'<br>Plano <b class="pn">'+esc(i.plano)+'</b> <button type="button" class="cp" data-act="copia" data-v="'+esc(i.plano)+'" title="Copiar número do plano" aria-label="Copiar número do plano">⧉</button><br>'+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+' · '+Math.round(i.horas)+' h<br><span style="color:#A89F96">'+esc(fonteTxt(i.pos))+(i.pos&&i.pos.paradas?' · '+i.pos.feitas+'/'+i.pos.paradas+' paradas':'')+'</span>');
     m.on('click',function(){seleciona(i.plano,false);});
     MARC[i.plano]=m;});
   var chave=(S.opf||'T')+'|'+(S.sit||'T')+'|'+its.length;
@@ -859,7 +907,7 @@ function render(){
 /* ---------- eventos ---------- */
 function guarda(){var q=document.getElementById('pQuem'),s=document.getElementById('pSenha');if(q)S.prog.quem=q.value.trim();if(s)S.prog.senha=s.value;progSet();}
 root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]');if(!b)return;var ac=b.getAttribute('data-act');
-  if(ac==='sair'){lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
+  if(ac==='sair'){pararAtu();S.atu=null;lsSet(LS_PASS,'');S.pass='';S.acoes=[];S.conflito=null;S.view='gate';S.err='';render();return;}
   if(ac==='relabre'){S.rel=relNovo();render();return;}
   if(ac==='relfecha'){S.rel=null;render();return;}
   if(ac==='relop'&&S.rel){relLeCampos();S.rel.op=b.getAttribute('data-op')||'TODAS';S.rel.msg='';render();return;}
@@ -869,6 +917,8 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
     S.rel.msg='';render();return;}
   if(ac==='relpdf'){relGerar('pdf');return;}
   if(ac==='relxls'){relGerar('xls');return;}
+  if(ac==='copia'){copiar(b.getAttribute('data-v')||'',b);return;}
+  if(ac==='atualizar'){pedirAtualizacao();return;}
   if(ac==='sel'){seleciona(b.getAttribute('data-plano'),true);return;}
   if(ac==='fop'){S.opf=b.getAttribute('data-op')||'TODAS';render();return;}
   if(ac==='fsit'){S.sit=b.getAttribute('data-sit')||'TODAS';render();return;}
