@@ -211,6 +211,19 @@ body.cc footer{display:none}
 .rbar{height:8px;border-radius:5px;background:var(--surface-2);margin-top:4px;overflow:hidden}.rbar i{display:block;height:100%;background:linear-gradient(90deg,#FF7A00,#FF5A3C);border-radius:5px}
 .rc{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.rc u{text-decoration:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
 .c-e{background:var(--bad-bg);color:var(--bad)}.c-s{background:var(--warn-bg);color:var(--warn)}.c-n{background:var(--info-bg);color:var(--info)}
+/* ---------- lancamentos em tela cheia ---------- */
+.lc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;align-items:start}
+.lc-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+body.cc .card{border-radius:12px;border-color:var(--line)}
+body.cc .card h2{color:var(--or)}
+body.cc .btn.ghost{background:#141414;color:var(--ink);border-color:var(--line)}
+body.cc .btn.ghost:hover{border-color:var(--or)}
+body.cc input,body.cc .sel,body.cc textarea{background:#0B0B0B;color:var(--ink);border-color:var(--line)}
+textarea{font:inherit;font-size:15px;width:100%;min-width:0;border-radius:8px;border:1px solid var(--line);padding:9px 11px;text-transform:none;letter-spacing:0;font-weight:400;resize:vertical;background:var(--bg);color:var(--ink)}
+textarea.mono,.hint .mono{font-family:var(--f-mono)}
+body.cc .gate{margin-top:40px}
+body.cc .list .row{border-top-color:var(--line)}
+@media (max-width:900px){.lc-cols{grid-template-columns:1fr}}
 .rel-btn{margin-left:auto;min-height:38px;padding:6px 16px}
 .modal-box.rel{border-color:var(--or)}.modal-box.rel h2{color:var(--or)}
 @media (max-width:900px){.ix-rk{grid-template-columns:1fr}.ixk b{font-size:48px}.ix-nota{margin-left:0}}
@@ -232,16 +245,16 @@ var WORKER_URL='https://mandalog-painel.carlos-eduardo-c87.workers.dev';
 var RESULT_URL='acoes.enc.json';
 var PEND_URL='pendencias.enc.json';
 var HIST_URL='historico.enc.json';
-var LS_ABA='mandalog-aba-v1';
+var LS_ABA='mandalog-aba-v2';
 var LOGO='https://mandalogcel-wq.github.io/mandalog-torre/assets/mandalog.png';
 var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1', LS_TRAT='mandalog-conflitos-tratados-v1';
 var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô'],CONFLITO:['err','Conflito: aguarda sua decisão']};
 
 var PERFIS=['FIORINO','HR','VUC','3/4','TOCO','TRUCK','CARRETA','TRUCK LONG'];
-var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada'};
+var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada',reentrega:'Reentrega'};
 var ABA_NOME={SUMARE:'Café Sumaré',GRU:'Café GRU',SJC:'Café SJC'};
 function hojeISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,msg2:'',msg2Ok:false,rdata:hojeISO(),rperfil:'',busy:false,prog:progGet(),poll:null};
+var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,msg2:'',msg2Ok:false,msg3:'',msg3Ok:false,edata:isoMais(hojeISO(),1),rdata:hojeISO(),rperfil:'',busy:false,prog:progGet(),poll:null};
 var root=document.getElementById('root');
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -312,7 +325,7 @@ function bannerSLA(){
   if(R.semMov)partes.push(R.semMov+' sem movimento após a saída');if(R.naoIni)partes.push(R.naoIni+' atrelada'+(R.naoIni>1?'s':'')+' e não iniciada'+(R.naoIni>1?'s':''));
   return '<div class="sla-banner'+(R.estouradas?'':' amb')+'" role="alert">⚠ '+partes.join(' · ')+'<small>Rotas MANDALOG. Aja no GM7Driver. Cobrança por e-mail às 08h e 16h, com cópia ao gestor quando há estourada.</small></div>';
 }
-function abas(){var a=[['pend','Pendências'],['ind','Indicadores'],['lanc','Lançamentos']];
+function abas(){var a=[['lanc','Lançamentos'],['pend','Pendências'],['ind','Indicadores']];
   return '<div class="tabs" role="tablist">'+a.map(function(x){return '<button type="button" class="tab'+(S.aba===x[0]?' on':'')+'" data-act="aba" data-aba="'+x[0]+'" role="tab" aria-selected="'+(S.aba===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';}
 /* ---------- central de pendencias (mapa preto/laranja) ---------- */
 var MAP=null,MAPEL=null,CAMADA=null,MARC={};
@@ -677,11 +690,11 @@ function relGerar(tipo){
 }
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
-  var K=(tipo==='roteirizar'||tipo==='impactar')?'msg2':'msg';
+  var K=tipo==='reentrega'?'msg3':((tipo==='roteirizar'||tipo==='impactar')?'msg2':'msg');
   function dize(t,ok){S[K]=t;S[K+'Ok']=ok;if(K==='msg2')S.msgOk=S.msgOk;}
   if(!S.prog.quem||!S.prog.senha){dize('Informe seu nome e a senha de programação.',false);render();return;}
   var id=novoId(),body=Object.assign({tipo:tipo,id:id,senha:S.prog.senha,quem:S.prog.quem},d);
-  S.msg='';S.msg2='';
+  S.msg='';S.msg2='';S.msg3='';
   S.busy=true;dize('Enviando…',false);render();
   fetch(WORKER_URL.replace(/\/$/,'')+'/acao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
@@ -709,12 +722,37 @@ function andamento(){
     var st=STATUS[a.status]||['pend',a.status||'–'];
     return '<div class="row"><span class="pl">'+esc(a.plano)+'</span><span class="w"><b>'+esc(NOMES_TIPO[a.tipo]||a.tipo)+'</b> · '+esc(a.motivo||'')+(a.quem?' · '+esc(a.quem):'')+(a.quando?' · '+esc(String(a.quando).slice(8,10)+'/'+String(a.quando).slice(5,7)+' '+String(a.quando).slice(11,16)):'')+'</span><span class="badge '+st[0]+'">'+esc(st[1])+'</span></div>';}).join('')+'</div></section>';
 }
+/* ---------- reentregas: NFs nao entregues, lancadas pelo cliente como reentrega para outro dia ---------- */
+function reentregas(off){
+  return '<section class="card"><h2>Reentregas</h2><p class="hint">Notas que não foram entregues e que o cliente lançou como reentrega. Cole <b>uma NF por linha, com a senha ao lado</b> (<span class="mono">NF;senha</span>). O robô copia cliente e cidade da primeira entrega, na própria aba, e cria uma linha nova com STATUS = REENTREGA e a senha (Sumaré: coluna COMPLEMENTO; GRU e SJC: coluna SENHAS).</p>'+
+    '<form id="reentForm"><div class="grid">'+
+    '<label>Nº do plano<input id="ePlano" class="mono" inputmode="numeric" placeholder="plano novo, ex.: 6103333346" maxlength="40" required></label>'+
+    '<label>Data de saída<input id="eData" type="date" value="'+esc(S.edata)+'" required></label>'+
+    '<label>Motorista<input id="eMot" placeholder="nome e sobrenome" maxlength="80" required></label>'+
+    '<label>Placa<input id="ePlaca" class="mono" placeholder="ABC1D23" maxlength="8" required></label></div>'+
+    '<label style="margin-top:12px">NFs e senhas (uma por linha)<textarea id="eNfs" class="mono" rows="7" spellcheck="false" placeholder="436452;04526982&#10;436453;04526983&#10;436460;04527001" required></textarea></label>'+
+    '<div class="ops"><button class="btn" type="submit" data-aba="SUMARE"'+off+'>Café Sumaré</button><button class="btn" type="submit" data-aba="GRU"'+off+'>Café GRU</button><button class="btn" type="submit" data-aba="SJC"'+off+'>Café SJC</button></div></form>'+
+    (S.msg3?'<p class="msg'+(S.msg3Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg3)+'</p>':'')+'</section>';
+}
+/* "436452;04526982" ou "436452 04526982" ou so "436452"  ->  [{nf, senha}] */
+function leNfs(txt){
+  var itens=[],erros=[],vistos={};
+  String(txt||'').split(/\r?\n/).forEach(function(l,i){
+    l=l.trim();if(!l)return;
+    var m=l.match(/^([^;\t, ]+)\s*[;\t, ]?\s*(.*)$/);
+    var nf=String(m?m[1]:'').split('-')[0].replace(/^0+/,'');
+    if(!/^\d{1,12}$/.test(nf)){erros.push('linha '+(i+1)+': NF inválida ('+l.slice(0,20)+')');return;}
+    if(vistos[nf]){erros.push('linha '+(i+1)+': NF '+nf+' repetida');return;}
+    vistos[nf]=1;itens.push({nf:nf,senha:(m[2]||'').trim().slice(0,40)});});
+  return {itens:itens,erros:erros};
+}
 function render(){
   var foco=document.activeElement&&document.activeElement.id,keep={};
-  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw','ePlano','eData','eMot','ePlaca','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  if(keep.eData)S.edata=keep.eData;
   if(keep.rData)S.rdata=keep.rData;if(keep.rPerfil!==undefined)S.rperfil=keep.rPerfil;
   if(S.view==='gate'){
-    document.body.classList.remove('cc');
+    document.body.classList.add('cc');
     root.innerHTML=header()+'<section class="card gate"><h2>Entrar</h2><p class="hint">Digite a senha do painel para ver o andamento dos pedidos.</p>'+
       '<form id="gateForm"><label>Senha<input id="pw" type="password" autocomplete="current-password" autofocus></label>'+
       (S.err?'<p class="msg bad" role="alert">'+esc(S.err)+'</p>':'')+
@@ -722,7 +760,7 @@ function render(){
     return;
   }
   var off=S.busy?' disabled':'';
-  var lanc=
+  var lanc='<div class="lc-cols"><div class="lc-col">'+
     '<section class="card"><h2>Identificação</h2><p class="hint">Quem está lançando. Fica salvo neste navegador.</p><div class="grid">'+
       '<label>Seu nome<input id="pQuem" maxlength="40" autocomplete="off" value="'+esc(S.prog.quem)+'"></label>'+
       '<label>Senha de programação<input id="pSenha" type="password" autocomplete="off" value="'+esc(S.prog.senha)+'"></label></div></section>'+
@@ -738,6 +776,7 @@ function render(){
       '<label>Nº do plano<input id="sPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
       '<div><button class="btn ghost" type="submit"'+off+'>▶ Iniciar rota</button></div></div></form>'+
       (S.msg?'<p class="msg'+(S.msgOk?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg)+'</p>':'')+'</section>'+
+    '</div><div class="lc-col">'+
     '<section class="card"><h2>Roteirização</h2><p class="hint">Traz do GM7 os clientes, notas e cidades do plano e inclui na planilha de roteirização, na aba da operação que você escolher. O motorista e a placa vêm do GM7. Plano e nota que já estão na aba não são repetidos.</p>'+
       '<form id="roteForm"><div class="grid">'+
       '<label>Nº do plano<input id="rPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
@@ -749,15 +788,15 @@ function render(){
       '<form id="impForm"><div class="grid"><label>Nº do plano<input id="iPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103333346" maxlength="40" required></label>'+
       '<div><button class="btn ghost" type="submit"'+off+'>Marcar NÃO EMITIR</button></div></div></form>'+
       (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
-    andamento();
-  var corpo=S.aba==='ind'?indicadores():(S.aba==='lanc'?lanc:pendencias());
-  var cc=!S.aba||S.aba==='pend'||S.aba==='ind';
-  document.body.classList.toggle('cc',cc);
+    reentregas(off)+
+    '</div><div class="lc-col">'+andamento()+'</div></div>';
+  var corpo=S.aba==='ind'?indicadores():(S.aba==='pend'?pendencias():lanc);
+  document.body.classList.add('cc');
   root.innerHTML=header('<button class="hbtn" data-act="sair">Sair</button>')+bannerSLA()+abas()+corpo+
     '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>'+modalConflito()+modalRel();
-  if(!S.aba||S.aba==='pend')atualizaMapa();
+  if(S.aba==='pend')atualizaMapa();
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
-  if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
+  if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano','ePlano','eMot','ePlaca','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
   if(foco){var f=document.getElementById(foco);if(f&&f.focus)f.focus();}
 }
 
@@ -779,7 +818,7 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
   if(ac==='fsit'){S.sit=b.getAttribute('data-sit')||'TODAS';render();return;}
   if(ac==='per'){S.per=parseInt(b.getAttribute('data-per'),10)||7;render();return;}
   if(ac==='iop'){S.iop=b.getAttribute('data-op')||'TODAS';render();return;}
-  if(ac==='aba'){S.aba=b.getAttribute('data-aba')||'pend';lsSet(LS_ABA,S.aba);render();window.scrollTo(0,0);return;}
+  if(ac==='aba'){S.aba=b.getAttribute('data-aba')||'lanc';lsSet(LS_ABA,S.aba);render();window.scrollTo(0,0);return;}
   if(ac==='manter'&&S.conflito){tratAdd(S.conflito.id);S.conflito=null;S.msg='Mantido como estava. Nada foi alterado.';S.msgOk=true;render();return;}
   if(ac==='sobrescrever'&&S.conflito&&S.conflito.conflito){var c=S.conflito.conflito;
     if(!S.prog.quem||!S.prog.senha){S.conflito=null;S.msg='Informe seu nome e a senha de programação e envie de novo.';S.msgOk=false;render();return;}
@@ -806,6 +845,22 @@ root.addEventListener('submit',function(ev){
     S.rdata=dt;S.rperfil=pf;
     if(!confirm('Incluir o plano '+p3+' na aba '+ABA_NOME[aba]+' da planilha, com data '+dt.split('-').reverse().join('/')+' e perfil '+pf+'?'))return;
     enviar('roteirizar',{plano:p3,aba:aba,data:dt,perfil:pf},true);return;}
+  if(id==='reentForm'){
+    var aba5=ev.submitter&&ev.submitter.getAttribute('data-aba');
+    var pl5=document.getElementById('ePlano').value.trim(),dt5=document.getElementById('eData').value,mo5=document.getElementById('eMot').value.trim(),pc5=document.getElementById('ePlaca').value.trim().toUpperCase();
+    var nfs=leNfs(document.getElementById('eNfs').value);
+    function e3(m){S.msg3=m;S.msg3Ok=false;render();}
+    if(!aba5)return e3('Escolha a operação pelos botões Café Sumaré, Café GRU ou Café SJC.');
+    if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(pl5))return e3('Número do plano inválido.');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dt5))return e3('Escolha a data de saída.');
+    if(mo5.length<3)return e3('Informe o motorista.');
+    if(!/^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/.test(pc5))return e3('Placa inválida (ex.: ABC1D23).');
+    if(nfs.erros.length)return e3('Corrija as NFs: '+nfs.erros.slice(0,3).join('; ')+(nfs.erros.length>3?' …':''));
+    if(!nfs.itens.length)return e3('Informe ao menos uma NF.');
+    if(nfs.itens.length>100)return e3('No máximo 100 NFs por pedido.');
+    S.edata=dt5;
+    if(!confirm('Lançar '+nfs.itens.length+' NF(s) como REENTREGA na aba '+ABA_NOME[aba5]+'?\nPlano '+pl5+' · saída '+dt5.split('-').reverse().join('/')+'\nMotorista '+mo5+' · placa '+pc5+'\n\nO robô cria uma linha nova para cada NF, com os dados da primeira entrega.'))return;
+    enviar('reentrega',{plano:pl5,aba:aba5,data:dt5,motorista:mo5,placa:pc5,itens:nfs.itens},true);return;}
   if(id==='impForm'){
     var p4=document.getElementById('iPlano').value.trim();
     if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(p4)){S.msg2='Número do plano inválido.';S.msg2Ok=false;render();return;}
@@ -818,7 +873,7 @@ root.addEventListener('submit',function(ev){
     enviar('iniciar',{plano:p2},true);}
 });
 
-S.pass=lsGet(LS_PASS);S.aba=lsGet(LS_ABA)||'pend';
+S.pass=lsGet(LS_PASS);S.aba=lsGet(LS_ABA)||'lanc';
 if(S.pass){S.view='ok';render();carrega();carregaPend();carregaHist();agenda();}else render();
 })();
 </script>
