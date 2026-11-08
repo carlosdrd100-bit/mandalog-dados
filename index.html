@@ -191,7 +191,7 @@ body.cc footer{display:none}
 .ixk.k-ok b{color:var(--ok)}.ixk.k-bad b{color:var(--bad)}
 .ixm{font-size:12px;color:var(--ink-2);margin-top:auto}
 .dl{font-size:12.5px;font-weight:600}.dl.good{color:var(--ok)}.dl.bad{color:var(--bad)}.dl.nd{color:var(--ink-2);font-weight:400}
-.spk{position:absolute;right:10px;bottom:10px;width:46%;height:34px;opacity:.9}
+.spk{position:absolute;right:12px;top:34px;width:34%;height:36px;opacity:.9}
 .ixcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
 .ixcard h2{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:.02em;color:var(--or);margin:0 0 2px}
 .ix-h{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
@@ -200,7 +200,9 @@ body.cc footer{display:none}
 .ixsvg{width:100%;height:auto;display:block;margin-top:6px}
 .ixsvg .ax{fill:var(--ink-2);font-size:12px}.ixsvg .ax2{fill:#6f665d;font-size:10px}.ixsvg .vl{fill:var(--ink);font-size:12px;font-weight:700}.ixsvg .meta{fill:#FFD9B0;font-size:12px;font-weight:600}
 .ix-leit ul{margin:6px 0 0;padding-left:20px;display:grid;gap:4px;font-size:14.5px}.ix-leit b{color:var(--ink)}.ix-leit b.g{color:var(--ok)}.ix-leit b.r{color:var(--bad)}
-.ix-rk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ix-ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px}
+.opsla{font-family:var(--f-display);font-size:34px;line-height:1;color:var(--or)}.opsla.g{color:var(--ok)}.opsla.r{color:var(--bad)}
+.ixsvg.sm .ax{font-size:15px}.ixsvg.sm .ax2{font-size:12px}.ixsvg.sm .vl{font-size:15px}.ixsvg.sm .meta{font-size:14px}
 .rk{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
 .rk:first-of-type{border-top:0}
 .rn{font-family:var(--f-display);font-size:24px;color:var(--ink-2);text-align:center}
@@ -289,8 +291,10 @@ function carregaPend(){
     return decrypt(env,S.pass).then(function(d){S.pend=d;render();},function(){});
   }).catch(function(){});
 }
-var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU','Café GRU'],['SJC','Café SJC'],['GRU_SJC','GRU / SJC (a definir)'],['SEM','Sem operação']];
-var NOP={SUMARE:'Sumaré',GRU:'GRU',SJC:'SJC',GRU_SJC:'GRU / SJC (a definir)',SEM:'Sem operação'};
+var OPS=[['TODAS','Todas'],['SUMARE','Café Sumaré'],['GRU','Café GRU'],['SJC','Café SJC'],['SEM','Sem operação']];
+var NOP={SUMARE:'Sumaré',GRU:'GRU',SJC:'SJC',SEM:'Sem operação'};
+/* cada rota e de UMA operacao: GRU_SJC (registro antigo) conta como GRU */
+function opDe(x){var o=(x&&x.operacao)||'SEM';return o==='GRU_SJC'?'GRU':o;}
 var SITS=[['TODAS','Todas as situações'],['finalizar','Falta finalizar'],['nao_iniciada','Não iniciadas'],['sem_movimento','Sem movimento']];
 /* metas (SLA do cliente: finalizar no mesmo dia da saída = 24 h). Ajuste aqui se a meta mudar. */
 var METAS={sla:95,tempo:18,semMov:2,naoIni:0,estouradas:0};
@@ -312,7 +316,7 @@ var MAP=null,MAPEL=null,CAMADA=null,MARC={};
 var FCLS={estourada:'f-est',alerta:'f-ale',prazo:'f-pra'},FROT={estourada:'Estourada',alerta:'Em alerta',prazo:'No prazo'};
 var TIP={finalizar:'Falta finalizar',nao_iniciada:'Atrelada e não iniciada'};
 function itensFiltrados(){var p=S.pend;if(!p||!p.itens)return [];var op=S.opf||'TODAS',sit=S.sit||'TODAS';
-  return p.itens.filter(function(i){return (op==='TODAS'||(i.operacao||'SEM')===op)&&bateSit(i,sit);});}
+  return p.itens.filter(function(i){return (op==='TODAS'||opDe(i)===op)&&bateSit(i,sit);});}
 function fmtSaida(i){var s=String(i.saida||i.ref||'');return s.slice(8,10)+'/'+s.slice(5,7)+' '+s.slice(11,16);}
 function fonteTxt(pos){if(!pos)return 'sem posição';
   return pos.fonte==='parada'?('última parada com chegada'+(pos.local?' ('+pos.local+')':'')):(pos.fonte==='origem'?'saída do CD':'CD (posição aproximada)');}
@@ -321,16 +325,16 @@ function pendencias(){
   if(!p||!p.resumo)return '<section class="card"><h2>Pendentes</h2><p class="hint">Rotas MANDALOG que exigem ação no GM7. Aguardando a primeira leitura…</p></section>';
   var lim=Math.round(p.limite_h||24),todos=p.itens||[],op=S.opf||'TODAS',sit=S.sit||'TODAS';
   var itens=itensFiltrados(),r=contaPend(itens),g=String(p.gerado||'');
-  var chipsOp=OPS.map(function(o){var base=todos.filter(function(i){return o[0]==='TODAS'||(i.operacao||'SEM')===o[0];}),c=contaPend(base);
-      if((o[0]==='SEM'||o[0]==='GRU_SJC')&&!c.total)return '';
+  var chipsOp=OPS.map(function(o){var base=todos.filter(function(i){return o[0]==='TODAS'||opDe(i)===o[0];}),c=contaPend(base);
+      if(o[0]==='SEM'&&!c.total)return '';
       return '<button type="button" class="chip sm'+(op===o[0]?' on':'')+(c.estouradas?' red':'')+'" data-act="fop" data-op="'+o[0]+'" role="tab" aria-selected="'+(op===o[0])+'">'+o[1]+' <b>'+c.total+'</b></button>';}).join('');
-  var chipsSit=SITS.map(function(s){var base=todos.filter(function(i){return (op==='TODAS'||(i.operacao||'SEM')===op)&&bateSit(i,s[0]);});
+  var chipsSit=SITS.map(function(s){var base=todos.filter(function(i){return (op==='TODAS'||opDe(i)===op)&&bateSit(i,s[0]);});
       return '<button type="button" class="chip sm'+(sit===s[0]?' on':'')+'" data-act="fsit" data-sit="'+s[0]+'" role="tab" aria-selected="'+(sit===s[0])+'">'+s[1]+' <b>'+base.length+'</b></button>';}).join('');
   var cards=itens.map(function(i){
-    var tags=(i.sem_movimento?'<span class="tag">Sem movimento</span> ':'')+(i.divergente?'<span class="tag">Operação divergente</span>':'');
+    var tags=(i.sem_movimento?'<span class="tag">Sem movimento</span> ':'')+(i.divergente?'<span class="tag" title="A planilha e o CD do GM7 apontam operações diferentes">Operação divergente</span> ':'')+(i.inferida?'<span class="tag" title="A planilha não tem este plano; assumido GRU (CD Guarulhos). Confirme na planilha">Operação assumida: GRU</span>':'');
     return '<div class="vc '+FCLS[i.faixa]+(S.sel===i.plano?' sel':'')+'" data-act="sel" data-plano="'+esc(i.plano)+'" tabindex="0">'+
       '<span class="pt">'+esc(i.placa||'SEM PLACA')+'</span><span class="h">'+Math.round(i.horas)+' h</span>'+
-      '<span class="w"><b>'+esc(i.motorista||'—')+'</b> · plano '+esc(i.plano)+'<br><span class="opx">'+esc(NOP[i.operacao||'SEM']||'')+' · '+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+'</span> '+tags+
+      '<span class="w"><b>'+esc(i.motorista||'—')+'</b> · plano '+esc(i.plano)+'<br><span class="opx">'+esc(NOP[opDe(i)]||'')+' · '+esc(TIP[i.tipo]||'')+' · '+FROT[i.faixa]+'</span> '+tags+
       '<br><span class="opx">'+(i.tipo==='nao_iniciada'?'saída prevista ':'saiu ')+esc(fmtSaida(i))+' · '+esc(fonteTxt(i.pos))+'</span></span></div>';}).join('');
   return '<div class="cc-main"><section class="cc-left">'+
     '<div class="cc-bar"><div class="chips" role="tablist" aria-label="Operação">'+chipsOp+'</div><div class="chips" role="tablist" aria-label="Situação">'+chipsSit+'</div></div>'+
@@ -338,7 +342,7 @@ function pendencias(){
     '<div class="cc-kpi k3"><b>'+r.prazo+'</b><span>No prazo</span></div><div class="cc-kpi k4"><b>'+r.semMov+'</b><span>Sem movimento</span></div></div>'+
     '<div class="cc-map"><div id="mapaSlot" style="position:absolute;inset:0"></div>'+
     '<div class="cc-leg"><span><i style="background:#FF3B2F"></i>Estourada</span><span><i style="background:#FFB020"></i>Em alerta</span><span><i style="background:#FF7A00"></i>Em andamento</span><span><i style="background:#FFD9B0"></i>No prazo</span></div></div></section>'+
-    '<aside class="cc-side"><div class="cc-sh">Veículos pendentes · '+itens.length+'<small>Rotas MANDALOG de ontem em diante · meta '+lim+' h · atualizado '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'</small></div>'+
+    '<aside class="cc-side"><div class="cc-sh">Veículos pendentes · '+itens.length+'<small>Rotas MANDALOG dos últimos '+(p.janela_dias||7)+' dias · meta '+lim+' h · atualizado '+esc(g.slice(8,10)+'/'+g.slice(5,7)+' '+g.slice(11,16))+'</small></div>'+
     '<div class="cc-list">'+(cards||'<div class="empty" style="margin:12px">'+(todos.length?'Nenhuma rota neste filtro.':'✔ Nenhuma rota MANDALOG pendente de ação.')+'</div>')+'</div></aside></div>';
 }
 /* o mapa e criado uma vez e reaproveitado a cada render (o render recria o HTML da tela) */
@@ -411,16 +415,16 @@ function spark(serie){
 function kpiIx(titulo,valor,txt,meta,ok,extra,spk){
   var cls=valor===null?'':(ok?' k-ok':' k-bad');
   return '<div class="ixk'+cls+'"><span class="ixt">'+titulo+'</span><b>'+(valor===null?'—':txt)+'</b>'+(extra||'')+'<span class="ixm">Meta: '+meta+'</span>'+(spk||'')+'</div>';}
-function graficoSla(serie){
-  if(!serie.length)return '<div class="empty" style="margin:14px">Ainda não há rotas com mais de 24 h de saída neste recorte. O gráfico aparece assim que houver.</div>';
-  var W=1200,H=340,pl=46,pr=16,pt=22,pb=46,n=serie.length,slot=(W-pl-pr)/n,bw=Math.min(54,slot*.64);
+function graficoSla(serie,sm){
+  if(!serie.length)return '<div class="empty" style="margin:10px 0">Sem rotas com mais de 24 h de saída neste recorte.</div>';
+  var W=sm?600:1200,H=sm?300:340,pl=sm?50:46,pr=16,pt=22,pb=sm?50:46,n=serie.length,slot=(W-pl-pr)/n,bw=Math.min(sm?34:54,slot*.64);
   function y(v){return pt+(H-pt-pb)*(1-v/100);}
-  var s='<svg class="ixsvg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="SLA por dia de saída">';
+  var s='<svg class="ixsvg'+(sm?' sm':'')+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="SLA por dia de saída">';
   [0,25,50,75,100].forEach(function(g){s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)" stroke-width="1"/><text x="'+(pl-8)+'" y="'+(y(g)+4)+'" text-anchor="end" class="ax">'+g+'%</text>';});
-  var passo=n>24?Math.ceil(n/24):1;
+  var passo=sm?(n>8?Math.ceil(n/8):1):(n>24?Math.ceil(n/24):1);
   serie.forEach(function(p,i){var x=pl+slot*i+slot/2,h=(H-pt-pb)*p.v/100,cor=p.v>=METAS.sla?'var(--ok)':(p.v>=METAS.sla-15?'var(--or)':'var(--bad)');
     s+='<g><title>'+p.d.slice(8,10)+'/'+p.d.slice(5,7)+': SLA '+fmt1(p.v)+'% ('+p.ok+' de '+p.n+' rotas no prazo)</title><rect x="'+(x-bw/2).toFixed(1)+'" y="'+(H-pb-h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(2,h).toFixed(1)+'" rx="3" fill="'+cor+'" opacity=".92"/>';
-    if(n<=20)s+='<text x="'+x.toFixed(1)+'" y="'+(H-pb-h-6).toFixed(1)+'" text-anchor="middle" class="vl">'+Math.round(p.v)+'%</text>';
+    if(n<=(sm?9:20))s+='<text x="'+x.toFixed(1)+'" y="'+(H-pb-h-6).toFixed(1)+'" text-anchor="middle" class="vl">'+Math.round(p.v)+'%</text>';
     if(i%passo===0)s+='<text x="'+x.toFixed(1)+'" y="'+(H-pb+16)+'" text-anchor="middle" class="ax">'+p.d.slice(8,10)+'/'+p.d.slice(5,7)+'</text><text x="'+x.toFixed(1)+'" y="'+(H-pb+30)+'" text-anchor="middle" class="ax2">'+p.n+' rotas</text>';
     s+='</g>';});
   s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(METAS.sla)+'" y2="'+y(METAS.sla)+'" stroke="#FFD9B0" stroke-width="1.6" stroke-dasharray="7 5"/><text x="'+(W-pr)+'" y="'+(y(METAS.sla)-6)+'" text-anchor="end" class="meta">Meta '+METAS.sla+'%</text>';
@@ -428,6 +432,14 @@ function graficoSla(serie){
       return (pl+slot*i+slot/2).toFixed(1)+','+y(so*100/sn).toFixed(1);}).join(' ');
     s+='<polyline points="'+pts+'" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>';}
   return s+'</svg>';}
+/* um grafico de SLA diario por operacao (cada rota pertence a uma unica operacao) */
+function graficosPorOperacao(porOp){
+  var ordem=['SUMARE','GRU','SJC','SEM'],now=new Date();
+  var cards=ordem.filter(function(o){return porOp[o]&&porOp[o].length;}).map(function(o){
+    var c=calcIx(porOp[o],now),ser=serieDia(c.venc),ok=c.sla!==null&&c.sla>=METAS.sla;
+    return '<section class="ixcard"><div class="ix-h"><h2>'+(ABA_NOME[o]||NOP[o]||o)+'</h2><span class="opsla'+(c.sla===null?'':(ok?' g':' r'))+'">'+(c.sla===null?'—':fmt1(c.sla)+'%')+'</span></div>'+
+      '<p class="hint" style="margin:0">'+c.n+' rotas · '+c.venc.length+' vencidas · '+(c.tempo===null?'—':fmt1(c.tempo)+' h médio')+'</p>'+graficoSla(ser,true)+'</section>';}).join('');
+  return cards?'<div class="ix-ops">'+cards+'</div>':'';}
 function rankingIx(titulo,dica,recs,campo,vazio){
   var m={};recs.forEach(function(r){var k=String(r[campo]||'').trim();if(!k||k==='—')return;var x=(m[k]=m[k]||{n:0,p:0,est:0,sm:0,ni:0});
     x.n++;if(r.estourou)x.est++;if(r.ja_sem_movimento)x.sm++;if(r.ja_nao_iniciada)x.ni++;if(r.estourou||r.ja_sem_movimento||r.ja_nao_iniciada)x.p++;});
@@ -452,18 +464,18 @@ function indicadores(){
   if(!H||!H.rotas)return '<section class="ixcard"><h2>Indicadores</h2><p class="hint">O histórico é montado a cada leitura do robô (de hora em hora). Volte depois da próxima leitura.</p></section>';
   var per=S.per||7,iop=S.iop||'TODAS',agora=new Date();
   var todas=Object.keys(H.rotas).map(function(k){return H.rotas[k];});
-  var filtra=function(r){return iop==='TODAS'||(r.operacao||'SEM')===iop;};
+  var filtra=function(r){return iop==='TODAS'||opDe(r)===iop;};
   var janela=function(ini,fim){return todas.filter(function(r){var t=dtLocal(r.ref);return t>=ini&&t<fim&&filtra(r);});};
   var corte=new Date(agora.getTime()-per*86400000),corte2=new Date(agora.getTime()-2*per*86400000);
   var cur=calcIx(janela(corte,new Date(agora.getTime()+86400000)),agora);
   var primeira=todas.reduce(function(m,r){var t=dtLocal(r.ref);return (!m||t<m)?t:m;},null);
   var prev=(primeira&&primeira<=new Date(corte.getTime()-per*0.5*86400000))?calcIx(janela(corte2,corte),agora):null;
   if(prev&&!prev.n)prev=null;
-  var serie=serieDia(cur.venc),est=S.pend&&S.pend.itens?contaPend(S.pend.itens.filter(function(i){return iop==='TODAS'||(i.operacao||'SEM')===iop;})).estouradas:null;
-  var presentes={};todas.forEach(function(r){presentes[r.operacao||'SEM']=1;});
+  var serie=serieDia(cur.venc),est=S.pend&&S.pend.itens?contaPend(S.pend.itens.filter(function(i){return iop==='TODAS'||opDe(i)===iop;})).estouradas:null;
+  var presentes={};todas.forEach(function(r){presentes[opDe(r)]=1;});
   var chipsPer=[7,15,30,60].map(function(d){return '<button type="button" class="chip sm'+(per===d?' on':'')+'" data-act="per" data-per="'+d+'">'+d+' dias</button>';}).join('');
   var chipsOp=OPS.filter(function(o){return o[0]==='TODAS'||presentes[o[0]];}).map(function(o){return '<button type="button" class="chip sm'+(iop===o[0]?' on':'')+'" data-act="iop" data-op="'+o[0]+'">'+o[1]+'</button>';}).join('');
-  var porOp={};cur.recs.forEach(function(r){var o=r.operacao||'SEM';(porOp[o]=porOp[o]||[]).push(r);});
+  var porOp={};cur.recs.forEach(function(r){var o=opDe(r);(porOp[o]=porOp[o]||[]).push(r);});
   var leitura=leituraIx(cur,serie,iop==='TODAS'?porOp:{});
   var spkSla=spark(serie);
   var h='<div class="ix"><div class="ix-bar"><div class="chips" role="tablist" aria-label="Período">'+chipsPer+'</div><div class="chips" role="tablist" aria-label="Operação">'+chipsOp+'</div>'+
@@ -476,10 +488,10 @@ function indicadores(){
       kpiIx('Estouradas abertas agora',est,String(est),'= '+METAS.estouradas,est!==null&&est<=METAS.estouradas,'<span class="dl nd">visão em tempo real</span>')+
       '<div class="ixk"><span class="ixt">Volume do período</span><b>'+cur.n+'</b><span class="dl nd">'+cur.fin.length+' finalizadas · '+cur.venc.length+' vencidas (&gt; 24 h)</span><span class="ixm">Rotas MANDALOG</span></div>'+
     '</div>'+
-    '<section class="ixcard"><div class="ix-h"><h2>SLA por dia de saída</h2><span class="ix-leg"><i style="background:var(--ok)"></i>≥ meta <i style="background:var(--or)"></i>até 15 pts abaixo <i style="background:var(--bad)"></i>crítico <i class="ln"></i>média móvel 7 dias</span></div>'+graficoSla(serie)+'</section>'+
+    '<section class="ixcard"><div class="ix-h"><h2>SLA por dia de saída'+(iop==='TODAS'?' · todas as operações':' · '+(ABA_NOME[iop]||NOP[iop]||iop))+'</h2><span class="ix-leg"><i style="background:var(--ok)"></i>≥ meta <i style="background:var(--or)"></i>até 15 pts abaixo <i style="background:var(--bad)"></i>crítico <i class="ln"></i>média móvel 7 dias</span></div>'+graficoSla(serie)+'</section>'+
+    (iop==='TODAS'?graficosPorOperacao(porOp):'')+
     (leitura.length?'<section class="ixcard ix-leit"><h2>Leitura do período</h2><ul>'+leitura.map(function(t){return '<li>'+t+'</li>';}).join('')+'</ul></section>':'')+
-    '<div class="ix-rk">'+rankingIx('Motoristas com mais ocorrências','Rotas em que estourou o prazo, ficou sem movimento ou não foi iniciada.',cur.recs,'motorista','Nenhuma ocorrência de motorista no período.')+
-    rankingIx('Placas com mais ocorrências','Mesmas ocorrências, vistas por veículo.',cur.recs,'placa','Nenhuma ocorrência de placa no período.')+'</div></div>';
+    rankingIx('Motoristas com mais ocorrências','Rotas em que estourou o prazo, ficou sem movimento ou não foi iniciada. A placa é vinculada ao motorista dono do veículo, então o ranking é um só.',cur.recs,'motorista','Nenhuma ocorrência de motorista no período.')+'</div>';
   return h;
 }
 
