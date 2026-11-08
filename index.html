@@ -729,7 +729,8 @@ function reentregas(off){
     '<label>Nº do plano<input id="ePlano" class="mono" inputmode="numeric" placeholder="plano novo, ex.: 6103333346" maxlength="40" required></label>'+
     '<label>Data de saída<input id="eData" type="date" value="'+esc(S.edata)+'" required></label>'+
     '<label>Motorista<input id="eMot" placeholder="nome e sobrenome" maxlength="80" required></label>'+
-    '<label>Placa<input id="ePlaca" class="mono" placeholder="ABC1D23" maxlength="8" required></label></div>'+
+    '<label>Placa<input id="ePlaca" class="mono" placeholder="ABC1D23" maxlength="8" required></label>'+
+    '<label>Perfil do veículo<select id="ePerfil" class="sel" required><option value="">Escolha…</option>'+PERFIS.map(function(x){return '<option'+(S.eperfil===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label></div>'+
     '<label style="margin-top:12px">NFs e senhas (uma por linha)<textarea id="eNfs" class="mono" rows="7" spellcheck="false" placeholder="436452;04526982&#10;436453;04526983&#10;436460;04527001" required></textarea></label>'+
     '<div class="ops"><button class="btn" type="submit" data-aba="SUMARE"'+off+'>Café Sumaré</button><button class="btn" type="submit" data-aba="GRU"'+off+'>Café GRU</button><button class="btn" type="submit" data-aba="SJC"'+off+'>Café SJC</button></div></form>'+
     (S.msg3?'<p class="msg'+(S.msg3Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg3)+'</p>':'')+'</section>';
@@ -748,8 +749,8 @@ function leNfs(txt){
 }
 function render(){
   var foco=document.activeElement&&document.activeElement.id,keep={};
-  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw','ePlano','eData','eMot','ePlaca','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
-  if(keep.eData)S.edata=keep.eData;
+  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw','ePlano','eData','eMot','ePlaca','ePerfil','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  if(keep.eData)S.edata=keep.eData;if(keep.ePerfil!==undefined)S.eperfil=keep.ePerfil;
   if(keep.rData)S.rdata=keep.rData;if(keep.rPerfil!==undefined)S.rperfil=keep.rPerfil;
   if(S.view==='gate'){
     document.body.classList.add('cc');
@@ -848,6 +849,7 @@ root.addEventListener('submit',function(ev){
   if(id==='reentForm'){
     var aba5=ev.submitter&&ev.submitter.getAttribute('data-aba');
     var pl5=document.getElementById('ePlano').value.trim(),dt5=document.getElementById('eData').value,mo5=document.getElementById('eMot').value.trim(),pc5=document.getElementById('ePlaca').value.trim().toUpperCase();
+    var pf5=document.getElementById('ePerfil').value;
     var nfs=leNfs(document.getElementById('eNfs').value);
     function e3(m){S.msg3=m;S.msg3Ok=false;render();}
     if(!aba5)return e3('Escolha a operação pelos botões Café Sumaré, Café GRU ou Café SJC.');
@@ -855,12 +857,14 @@ root.addEventListener('submit',function(ev){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(dt5))return e3('Escolha a data de saída.');
     if(mo5.length<3)return e3('Informe o motorista.');
     if(!/^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/.test(pc5))return e3('Placa inválida (ex.: ABC1D23).');
+    if(PERFIS.indexOf(pf5)<0)return e3('Escolha o perfil do veículo.');
+    S.eperfil=pf5;
     if(nfs.erros.length)return e3('Corrija as NFs: '+nfs.erros.slice(0,3).join('; ')+(nfs.erros.length>3?' …':''));
     if(!nfs.itens.length)return e3('Informe ao menos uma NF.');
     if(nfs.itens.length>100)return e3('No máximo 100 NFs por pedido.');
     S.edata=dt5;
-    if(!confirm('Lançar '+nfs.itens.length+' NF(s) como REENTREGA na aba '+ABA_NOME[aba5]+'?\nPlano '+pl5+' · saída '+dt5.split('-').reverse().join('/')+'\nMotorista '+mo5+' · placa '+pc5+'\n\nO robô cria uma linha nova para cada NF, com os dados da primeira entrega.'))return;
-    enviar('reentrega',{plano:pl5,aba:aba5,data:dt5,motorista:mo5,placa:pc5,itens:nfs.itens},true);return;}
+    if(!confirm('Lançar '+nfs.itens.length+' NF(s) como REENTREGA na aba '+ABA_NOME[aba5]+'?\nPlano '+pl5+' · saída '+dt5.split('-').reverse().join('/')+'\nMotorista '+mo5+' · placa '+pc5+' · perfil '+pf5+'\n\nO robô cria uma linha nova para cada NF, com os dados da primeira entrega.'))return;
+    enviar('reentrega',{plano:pl5,aba:aba5,data:dt5,motorista:mo5,placa:pc5,perfil:pf5,itens:nfs.itens},true);return;}
   if(id==='impForm'){
     var p4=document.getElementById('iPlano').value.trim();
     if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(p4)){S.msg2='Número do plano inválido.';S.msg2Ok=false;render();return;}
