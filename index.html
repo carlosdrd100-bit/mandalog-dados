@@ -179,6 +179,36 @@ body.cc footer{display:none}
 .leaflet-popup-content{margin:10px 12px;font-size:13px;line-height:1.4}.leaflet-popup-content b{color:#FF7A00}
 .leaflet-control-attribution{background:rgba(0,0,0,.6)!important;color:#8a8279!important}.leaflet-control-attribution a{color:#b9a58f!important}
 .leaflet-bar a{background:#141414;color:#FF7A00;border-color:#2B2520}
+/* ---------- indicadores executivos ---------- */
+.ix{display:flex;flex-direction:column;gap:10px}
+.ix-bar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}.ix-bar .chips{margin:0}
+.ix-nota{margin-left:auto;font-size:12px;color:var(--ink-2)}
+.ix-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.ixk{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--or);border-radius:12px;padding:12px 16px 10px;display:flex;flex-direction:column;gap:2px;min-height:150px}
+.ixk.k-ok{border-top-color:var(--ok)}.ixk.k-bad{border-top-color:var(--bad)}
+.ixt{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--ink-2)}
+.ixk b{font-family:var(--f-display);font-size:60px;line-height:1;color:var(--or)}
+.ixk.k-ok b{color:var(--ok)}.ixk.k-bad b{color:var(--bad)}
+.ixm{font-size:12px;color:var(--ink-2);margin-top:auto}
+.dl{font-size:12.5px;font-weight:600}.dl.good{color:var(--ok)}.dl.bad{color:var(--bad)}.dl.nd{color:var(--ink-2);font-weight:400}
+.spk{position:absolute;right:10px;bottom:10px;width:46%;height:34px;opacity:.9}
+.ixcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+.ixcard h2{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:.02em;color:var(--or);margin:0 0 2px}
+.ix-h{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
+.ix-leg{font-size:12px;color:var(--ink-2)}.ix-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 5px 0 12px;vertical-align:-1px}
+.ix-leg i.ln{width:20px;height:3px;border-radius:2px;background:#fff;vertical-align:3px}
+.ixsvg{width:100%;height:auto;display:block;margin-top:6px}
+.ixsvg .ax{fill:var(--ink-2);font-size:12px}.ixsvg .ax2{fill:#6f665d;font-size:10px}.ixsvg .vl{fill:var(--ink);font-size:12px;font-weight:700}.ixsvg .meta{fill:#FFD9B0;font-size:12px;font-weight:600}
+.ix-leit ul{margin:6px 0 0;padding-left:20px;display:grid;gap:4px;font-size:14.5px}.ix-leit b{color:var(--ink)}.ix-leit b.g{color:var(--ok)}.ix-leit b.r{color:var(--bad)}
+.ix-rk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rk{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.rk:first-of-type{border-top:0}
+.rn{font-family:var(--f-display);font-size:24px;color:var(--ink-2);text-align:center}
+.rt{display:flex;flex-wrap:wrap;gap:0 10px;align-items:baseline}.rt b{font-weight:600;overflow-wrap:anywhere}.rt em{font-style:normal;font-size:12px;color:var(--ink-2)}
+.rbar{height:8px;border-radius:5px;background:var(--surface-2);margin-top:4px;overflow:hidden}.rbar i{display:block;height:100%;background:linear-gradient(90deg,#FF7A00,#FF5A3C);border-radius:5px}
+.rc{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.rc u{text-decoration:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.c-e{background:var(--bad-bg);color:var(--bad)}.c-s{background:var(--warn-bg);color:var(--warn)}.c-n{background:var(--info-bg);color:var(--info)}
+@media (max-width:900px){.ix-rk{grid-template-columns:1fr}.ixk b{font-size:48px}.ix-nota{margin-left:0}}
 @media (max-width:900px){.cc-main{grid-template-columns:1fr;height:auto}.cc-map{height:58vh;flex:none}.cc-list{max-height:none}.cc-kpis{grid-template-columns:repeat(2,1fr)}}
 footer{font-size:12px;color:var(--ink-2)}
 @media (max-width:520px){.hdr-t h1{font-size:28px}.row{grid-template-columns:1fr auto}.row .w{grid-column:1 / -1;order:3}}
@@ -355,50 +385,105 @@ function carregaHist(){
 }
 function dtLocal(s){return new Date(String(s||'').replace(' ','T'));}
 function pct(n,d){return d?Math.round(n*1000/d)/10:null;}
-function metaCard(titulo,valor,txt,meta,ok){
-  var cls=valor===null?'':(ok?' m-ok':' m-bad');
-  return '<div class="mcard'+cls+'"><span class="mt">'+titulo+'</span><b>'+(valor===null?'—':txt)+'</b><span class="mm">Meta: '+meta+'</span></div>';}
+/* ---------- Indicadores executivos (preto + laranja, tela cheia) ---------- */
+function fmt1(n){return String(Math.round(n*10)/10).replace('.',',');}
+function bateSla(r){return r.finalizada&&(r.final_h==null?!r.estourou:r.final_h<=24);}
+function calcIx(recs,agora){
+  var venc=recs.filter(function(r){return dtLocal(r.ref)<=new Date(agora.getTime()-24*3600000);});
+  var ok=venc.filter(bateSla),fin=recs.filter(function(r){return r.finalizada&&r.final_h!=null;});
+  return {recs:recs,n:recs.length,venc:venc,ok:ok,fin:fin,
+    sla:pct(ok.length,venc.length),
+    tempo:fin.length?Math.round(fin.reduce(function(a,r){return a+r.final_h;},0)/fin.length*10)/10:null,
+    sm:pct(recs.filter(function(r){return r.ja_sem_movimento;}).length,recs.length),
+    ni:recs.filter(function(r){return r.ja_nao_iniciada;}).length};}
+function deltaHtml(cur,prev,unit,subirEhBom){
+  if(cur===null||prev===null||prev===undefined)return '<span class="dl nd">sem base de comparação</span>';
+  var d=Math.round((cur-prev)*10)/10;
+  if(d===0)return '<span class="dl nd">= igual ao período anterior</span>';
+  var bom=subirEhBom?d>0:d<0;
+  return '<span class="dl '+(bom?'good':'bad')+'">'+(d>0?'▲ +':'▼ −')+fmt1(Math.abs(d))+' '+unit+' vs. período anterior</span>';}
+function serieDia(venc){var dias={};venc.forEach(function(r){var d=String(r.ref).slice(0,10);var x=(dias[d]=dias[d]||{n:0,ok:0});x.n++;if(bateSla(r))x.ok++;});
+  return Object.keys(dias).sort().map(function(d){return {d:d,n:dias[d].n,ok:dias[d].ok,v:Math.round(dias[d].ok*1000/dias[d].n)/10};});}
+function spark(serie){
+  if(serie.length<2)return '<svg class="spk" viewBox="0 0 100 30" preserveAspectRatio="none"></svg>';
+  var pts=serie.map(function(s,i){return (i*100/(serie.length-1)).toFixed(1)+','+(28-s.v*26/100).toFixed(1);}).join(' ');
+  return '<svg class="spk" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="var(--or)" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';}
+function kpiIx(titulo,valor,txt,meta,ok,extra,spk){
+  var cls=valor===null?'':(ok?' k-ok':' k-bad');
+  return '<div class="ixk'+cls+'"><span class="ixt">'+titulo+'</span><b>'+(valor===null?'—':txt)+'</b>'+(extra||'')+'<span class="ixm">Meta: '+meta+'</span>'+(spk||'')+'</div>';}
+function graficoSla(serie){
+  if(!serie.length)return '<div class="empty" style="margin:14px">Ainda não há rotas com mais de 24 h de saída neste recorte. O gráfico aparece assim que houver.</div>';
+  var W=1200,H=340,pl=46,pr=16,pt=22,pb=46,n=serie.length,slot=(W-pl-pr)/n,bw=Math.min(54,slot*.64);
+  function y(v){return pt+(H-pt-pb)*(1-v/100);}
+  var s='<svg class="ixsvg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="SLA por dia de saída">';
+  [0,25,50,75,100].forEach(function(g){s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)" stroke-width="1"/><text x="'+(pl-8)+'" y="'+(y(g)+4)+'" text-anchor="end" class="ax">'+g+'%</text>';});
+  var passo=n>24?Math.ceil(n/24):1;
+  serie.forEach(function(p,i){var x=pl+slot*i+slot/2,h=(H-pt-pb)*p.v/100,cor=p.v>=METAS.sla?'var(--ok)':(p.v>=METAS.sla-15?'var(--or)':'var(--bad)');
+    s+='<g><title>'+p.d.slice(8,10)+'/'+p.d.slice(5,7)+': SLA '+fmt1(p.v)+'% ('+p.ok+' de '+p.n+' rotas no prazo)</title><rect x="'+(x-bw/2).toFixed(1)+'" y="'+(H-pb-h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(2,h).toFixed(1)+'" rx="3" fill="'+cor+'" opacity=".92"/>';
+    if(n<=20)s+='<text x="'+x.toFixed(1)+'" y="'+(H-pb-h-6).toFixed(1)+'" text-anchor="middle" class="vl">'+Math.round(p.v)+'%</text>';
+    if(i%passo===0)s+='<text x="'+x.toFixed(1)+'" y="'+(H-pb+16)+'" text-anchor="middle" class="ax">'+p.d.slice(8,10)+'/'+p.d.slice(5,7)+'</text><text x="'+x.toFixed(1)+'" y="'+(H-pb+30)+'" text-anchor="middle" class="ax2">'+p.n+' rotas</text>';
+    s+='</g>';});
+  s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(METAS.sla)+'" y2="'+y(METAS.sla)+'" stroke="#FFD9B0" stroke-width="1.6" stroke-dasharray="7 5"/><text x="'+(W-pr)+'" y="'+(y(METAS.sla)-6)+'" text-anchor="end" class="meta">Meta '+METAS.sla+'%</text>';
+  if(n>=3){var pts=serie.map(function(p,i){var a=Math.max(0,i-6),sn=0,so=0;for(var k=a;k<=i;k++){sn+=serie[k].n;so+=serie[k].ok;}
+      return (pl+slot*i+slot/2).toFixed(1)+','+y(so*100/sn).toFixed(1);}).join(' ');
+    s+='<polyline points="'+pts+'" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>';}
+  return s+'</svg>';}
+function rankingIx(titulo,dica,recs,campo,vazio){
+  var m={};recs.forEach(function(r){var k=String(r[campo]||'').trim();if(!k||k==='—')return;var x=(m[k]=m[k]||{n:0,p:0,est:0,sm:0,ni:0});
+    x.n++;if(r.estourou)x.est++;if(r.ja_sem_movimento)x.sm++;if(r.ja_nao_iniciada)x.ni++;if(r.estourou||r.ja_sem_movimento||r.ja_nao_iniciada)x.p++;});
+  var lista=Object.keys(m).map(function(k){var x=m[k];x.k=k;return x;}).filter(function(x){return x.p>0;}).sort(function(a,b){return b.p-a.p||b.n-a.n;}).slice(0,10);
+  var max=lista.length?lista[0].p:1;
+  return '<section class="ixcard"><h2>'+titulo+'</h2><p class="hint">'+dica+'</p>'+(lista.length?lista.map(function(x,i){
+    return '<div class="rk"><span class="rn">'+(i+1)+'</span><div class="rb"><div class="rt"><b>'+esc(x.k)+'</b><em>'+x.p+' de '+x.n+' rota'+(x.n>1?'s':'')+' com ocorrência · '+Math.round((x.n-x.p)*100/x.n)+'% no prazo</em></div>'+
+      '<div class="rbar"><i style="width:'+Math.max(6,Math.round(x.p*100/max))+'%"></i></div></div><span class="rc">'+(x.est?'<u class="c-e">'+x.est+' estour.</u>':'')+(x.sm?'<u class="c-s">'+x.sm+' s/ mov.</u>':'')+(x.ni?'<u class="c-n">'+x.ni+' não ini.</u>':'')+'</span></div>';}).join(''):'<div class="empty">'+vazio+'</div>')+'</section>';}
+function leituraIx(cur,serie,recsPorOp){
+  var l=[];
+  if(cur.sla!==null){var d=Math.round((cur.sla-METAS.sla)*10)/10;
+    l.push('SLA de <b>'+fmt1(cur.sla)+'%</b> em '+cur.venc.length+' rotas vencidas: '+(d>=0?'<b class="g">'+fmt1(d)+' pts acima da meta</b>':'<b class="r">'+fmt1(-d)+' pts abaixo da meta</b>')+' de '+METAS.sla+'%.');}
+  if(serie.length>1){var pior=serie.slice().sort(function(a,b){return a.v-b.v||b.n-a.n;})[0];
+    l.push('Pior dia de saída: <b>'+pior.d.slice(8,10)+'/'+pior.d.slice(5,7)+'</b> com '+fmt1(pior.v)+'% ('+pior.ok+' de '+pior.n+' no prazo).');}
+  var ops=Object.keys(recsPorOp).map(function(o){var c=calcIx(recsPorOp[o],new Date());return {o:o,c:c};}).filter(function(x){return x.c.venc.length>=2&&x.c.sla!==null;});
+  if(ops.length>1){ops.sort(function(a,b){return a.c.sla-b.c.sla;});l.push('Operação com menor SLA: <b>'+(ABA_NOME[ops[0].o]||ops[0].o)+'</b> ('+fmt1(ops[0].c.sla)+'%); melhor: <b>'+(ABA_NOME[ops[ops.length-1].o]||ops[ops.length-1].o)+'</b> ('+fmt1(ops[ops.length-1].c.sla)+'%).');}
+  var semFin=cur.n-cur.fin.length;
+  if(cur.n)l.push('<b>'+semFin+'</b> de '+cur.n+' rotas do período ainda não tiveram a finalização registrada pelo robô.');
+  return l;}
 function indicadores(){
   var H=S.hist;
-  if(!H||!H.rotas)return '<section class="card"><h2>Indicadores</h2><p class="hint">O histórico começa a ser montado a cada leitura do robô (de hora em hora). Volte aqui depois da próxima leitura.</p></section>';
-  var per=S.per||7,agora=new Date(),corte=new Date(agora.getTime()-per*86400000);
-  var recs=Object.keys(H.rotas).map(function(k){return H.rotas[k];}).filter(function(r){return dtLocal(r.ref)>=corte;});
-  var venc=recs.filter(function(r){return dtLocal(r.ref)<=new Date(agora.getTime()-24*3600000);});
-  var ok=venc.filter(function(r){return r.finalizada&&(r.final_h==null?!r.estourou:r.final_h<=24);});
-  var sla=pct(ok.length,venc.length);
-  var fin=recs.filter(function(r){return r.finalizada&&r.final_h!=null;});
-  var tempo=fin.length?Math.round(fin.reduce(function(a,r){return a+r.final_h;},0)/fin.length*10)/10:null;
-  var sm=pct(recs.filter(function(r){return r.ja_sem_movimento;}).length,recs.length);
-  var ni=recs.filter(function(r){return r.ja_nao_iniciada;}).length;
-  var est=S.pend&&S.pend.itens?contaPend(S.pend.itens).estouradas:0;
-  var h='<section class="card"><h2>Indicadores</h2><p class="hint">Rotas MANDALOG nos últimos '+per+' dias, a partir do histórico do robô. Meta do cliente: finalizar no mesmo dia da saída (24 h).</p>'+
-    '<div class="chips">'+[7,30].map(function(d){return '<button type="button" class="chip sm'+(per===d?' on':'')+'" data-act="per" data-per="'+d+'">Últimos '+d+' dias</button>';}).join('')+'</div>'+
-    '<div class="mgrid">'+
-      metaCard('SLA: finalizadas em até 24 h',sla,sla+'%','≥ '+METAS.sla+'%',sla!==null&&sla>=METAS.sla)+
-      metaCard('Tempo médio até finalizar',tempo,tempo+' h','≤ '+METAS.tempo+' h',tempo!==null&&tempo<=METAS.tempo)+
-      metaCard('Rotas sem movimento',sm,sm+'%','≤ '+METAS.semMov+'%',sm!==null&&sm<=METAS.semMov)+
-      metaCard('Atreladas e não iniciadas',recs.length?ni:null,ni+'','= '+METAS.naoIni,ni<=METAS.naoIni)+
-      metaCard('Estouradas abertas agora',S.pend?est:null,est+'','= '+METAS.estouradas,est<=METAS.estouradas)+
-      '<div class="mcard"><span class="mt">Rotas no período</span><b>'+recs.length+'</b><span class="mm">'+fin.length+' finalizadas</span></div>'+
-    '</div></section>';
-  /* tendência por dia */
-  var dias={};venc.forEach(function(r){var d=String(r.ref).slice(0,10);(dias[d]=dias[d]||{n:0,ok:0});dias[d].n++;if(r.finalizada&&(r.final_h==null?!r.estourou:r.final_h<=24))dias[d].ok++;});
-  var ks=Object.keys(dias).sort().slice(-14);
-  if(ks.length)h+='<section class="card"><h2>SLA por dia de saída</h2><div class="bars">'+ks.map(function(d){var v=Math.round(dias[d].ok*100/dias[d].n);
-    return '<div class="bar"><div class="bv" style="height:'+Math.max(4,v)+'%"><span>'+v+'%</span></div><small>'+esc(d.slice(8,10)+'/'+d.slice(5,7))+'<br>'+dias[d].n+' rotas</small></div>';}).join('')+'</div></section>';
-  /* por operação */
-  var nop={SUMARE:'Café Sumaré',GRU:'Café GRU',SJC:'Café SJC',GRU_SJC:'GRU / SJC (a definir)',SEM:'Sem operação'};
-  var linhasOp=Object.keys(nop).map(function(op){var rr=recs.filter(function(r){return (r.operacao||'SEM')===op;});if(!rr.length)return '';
-    var v=rr.filter(function(r){return venc.indexOf(r)>=0;}),o=v.filter(function(r){return ok.indexOf(r)>=0;}),s=pct(o.length,v.length);
-    return '<div class="prow '+(s===null?'f-pra':(s>=METAS.sla?'f-pra':'f-est'))+'"><span class="pl">'+nop[op]+'</span><span class="w">'+rr.length+' rotas · '+rr.filter(function(r){return r.estourou;}).length+' estouraram · '+rr.filter(function(r){return r.ja_sem_movimento;}).length+' sem movimento · '+rr.filter(function(r){return r.ja_nao_iniciada;}).length+' não iniciadas</span><span class="h">'+(s===null?'—':s+'%')+'</span></div>';}).join('');
-  if(linhasOp)h+='<section class="card"><h2>Por operação</h2><div class="list">'+linhasOp+'</div></section>';
-  /* motoristas com dificuldade */
-  var mot={};recs.forEach(function(r){var m=r.motorista||'—';var x=(mot[m]=mot[m]||{n:0,est:0,sm:0,ni:0});x.n++;if(r.estourou)x.est++;if(r.ja_sem_movimento)x.sm++;if(r.ja_nao_iniciada)x.ni++;});
-  var rank=Object.keys(mot).map(function(m){var x=mot[m];return {m:m,n:x.n,est:x.est,sm:x.sm,ni:x.ni,p:x.est+x.sm+x.ni};}).filter(function(x){return x.p>0;}).sort(function(a,b){return b.p-a.p||b.n-a.n;}).slice(0,8);
-  h+='<section class="card"><h2>Motoristas com mais dificuldade</h2><p class="hint">Soma de ocorrências no período: estourou o prazo, ficou sem movimento ou não foi iniciada.</p>'+
-    (rank.length?'<div class="list">'+rank.map(function(x){return '<div class="prow f-est"><span class="pl">'+esc(x.m)+'</span><span class="w">'+x.n+' rota'+(x.n>1?'s':'')+' · '+x.est+' estourou · '+x.sm+' sem movimento · '+x.ni+' não iniciada</span><span class="h">'+x.p+'</span></div>';}).join('')+'</div>':'<div class="empty">Nenhuma ocorrência no período.</div>')+'</section>';
+  if(!H||!H.rotas)return '<section class="ixcard"><h2>Indicadores</h2><p class="hint">O histórico é montado a cada leitura do robô (de hora em hora). Volte depois da próxima leitura.</p></section>';
+  var per=S.per||7,iop=S.iop||'TODAS',agora=new Date();
+  var todas=Object.keys(H.rotas).map(function(k){return H.rotas[k];});
+  var filtra=function(r){return iop==='TODAS'||(r.operacao||'SEM')===iop;};
+  var janela=function(ini,fim){return todas.filter(function(r){var t=dtLocal(r.ref);return t>=ini&&t<fim&&filtra(r);});};
+  var corte=new Date(agora.getTime()-per*86400000),corte2=new Date(agora.getTime()-2*per*86400000);
+  var cur=calcIx(janela(corte,new Date(agora.getTime()+86400000)),agora);
+  var primeira=todas.reduce(function(m,r){var t=dtLocal(r.ref);return (!m||t<m)?t:m;},null);
+  var prev=(primeira&&primeira<=new Date(corte.getTime()-per*0.5*86400000))?calcIx(janela(corte2,corte),agora):null;
+  if(prev&&!prev.n)prev=null;
+  var serie=serieDia(cur.venc),est=S.pend&&S.pend.itens?contaPend(S.pend.itens.filter(function(i){return iop==='TODAS'||(i.operacao||'SEM')===iop;})).estouradas:null;
+  var presentes={};todas.forEach(function(r){presentes[r.operacao||'SEM']=1;});
+  var chipsPer=[7,15,30,60].map(function(d){return '<button type="button" class="chip sm'+(per===d?' on':'')+'" data-act="per" data-per="'+d+'">'+d+' dias</button>';}).join('');
+  var chipsOp=OPS.filter(function(o){return o[0]==='TODAS'||presentes[o[0]];}).map(function(o){return '<button type="button" class="chip sm'+(iop===o[0]?' on':'')+'" data-act="iop" data-op="'+o[0]+'">'+o[1]+'</button>';}).join('');
+  var porOp={};cur.recs.forEach(function(r){var o=r.operacao||'SEM';(porOp[o]=porOp[o]||[]).push(r);});
+  var leitura=leituraIx(cur,serie,iop==='TODAS'?porOp:{});
+  var spkSla=spark(serie);
+  var h='<div class="ix"><div class="ix-bar"><div class="chips" role="tablist" aria-label="Período">'+chipsPer+'</div><div class="chips" role="tablist" aria-label="Operação">'+chipsOp+'</div>'+
+    '<span class="ix-nota">Rotas MANDALOG com saída nos últimos '+per+' dias · histórico do robô · meta do cliente: finalizar em 24 h</span></div>'+
+    '<div class="ix-kpis">'+
+      kpiIx('SLA · finalizadas em até 24 h',cur.sla,fmt1(cur.sla)+'%','≥ '+METAS.sla+'%',cur.sla!==null&&cur.sla>=METAS.sla,deltaHtml(cur.sla,prev&&prev.sla,'pts',true),spkSla)+
+      kpiIx('Tempo médio até finalizar',cur.tempo,fmt1(cur.tempo)+' h','≤ '+METAS.tempo+' h',cur.tempo!==null&&cur.tempo<=METAS.tempo,deltaHtml(cur.tempo,prev&&prev.tempo,'h',false))+
+      kpiIx('Rotas sem movimento',cur.sm,fmt1(cur.sm)+'%','≤ '+METAS.semMov+'%',cur.sm!==null&&cur.sm<=METAS.semMov,deltaHtml(cur.sm,prev&&prev.sm,'pts',false))+
+      kpiIx('Atreladas e não iniciadas',cur.n?cur.ni:null,String(cur.ni),'= '+METAS.naoIni,cur.ni<=METAS.naoIni,deltaHtml(cur.n?cur.ni:null,prev&&prev.ni,'',false))+
+      kpiIx('Estouradas abertas agora',est,String(est),'= '+METAS.estouradas,est!==null&&est<=METAS.estouradas,'<span class="dl nd">visão em tempo real</span>')+
+      '<div class="ixk"><span class="ixt">Volume do período</span><b>'+cur.n+'</b><span class="dl nd">'+cur.fin.length+' finalizadas · '+cur.venc.length+' vencidas (&gt; 24 h)</span><span class="ixm">Rotas MANDALOG</span></div>'+
+    '</div>'+
+    '<section class="ixcard"><div class="ix-h"><h2>SLA por dia de saída</h2><span class="ix-leg"><i style="background:var(--ok)"></i>≥ meta <i style="background:var(--or)"></i>até 15 pts abaixo <i style="background:var(--bad)"></i>crítico <i class="ln"></i>média móvel 7 dias</span></div>'+graficoSla(serie)+'</section>'+
+    (leitura.length?'<section class="ixcard ix-leit"><h2>Leitura do período</h2><ul>'+leitura.map(function(t){return '<li>'+t+'</li>';}).join('')+'</ul></section>':'')+
+    '<div class="ix-rk">'+rankingIx('Motoristas com mais ocorrências','Rotas em que estourou o prazo, ficou sem movimento ou não foi iniciada.',cur.recs,'motorista','Nenhuma ocorrência de motorista no período.')+
+    rankingIx('Placas com mais ocorrências','Mesmas ocorrências, vistas por veículo.',cur.recs,'placa','Nenhuma ocorrência de placa no período.')+'</div></div>';
   return h;
-}function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();carregaHist();}},20000);}
+}
+
+function agenda(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(function(){if(S.view==='ok'){carrega();carregaPend();carregaHist();}},20000);}
 
 /* ---------- envio ---------- */
 function enviar(tipo,d,limpar){
@@ -476,11 +561,11 @@ function render(){
       (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
     andamento();
   var corpo=S.aba==='ind'?indicadores():(S.aba==='lanc'?lanc:pendencias());
-  var cc=!S.aba||S.aba==='pend';
+  var cc=!S.aba||S.aba==='pend'||S.aba==='ind';
   document.body.classList.toggle('cc',cc);
   root.innerHTML=header('<button class="hbtn" data-act="sair">Sair</button>')+bannerSLA()+abas()+corpo+
     '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>'+modalConflito();
-  if(cc)atualizaMapa();
+  if(!S.aba||S.aba==='pend')atualizaMapa();
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
   if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
   if(foco){var f=document.getElementById(foco);if(f&&f.focus)f.focus();}
@@ -494,6 +579,7 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
   if(ac==='fop'){S.opf=b.getAttribute('data-op')||'TODAS';render();return;}
   if(ac==='fsit'){S.sit=b.getAttribute('data-sit')||'TODAS';render();return;}
   if(ac==='per'){S.per=parseInt(b.getAttribute('data-per'),10)||7;render();return;}
+  if(ac==='iop'){S.iop=b.getAttribute('data-op')||'TODAS';render();return;}
   if(ac==='aba'){S.aba=b.getAttribute('data-aba')||'pend';lsSet(LS_ABA,S.aba);render();window.scrollTo(0,0);return;}
   if(ac==='manter'&&S.conflito){tratAdd(S.conflito.id);S.conflito=null;S.msg='Mantido como estava. Nada foi alterado.';S.msgOk=true;render();return;}
   if(ac==='sobrescrever'&&S.conflito&&S.conflito.conflito){var c=S.conflito.conflito;
