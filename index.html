@@ -226,6 +226,11 @@ body.cc footer{display:none}
 .rbar{height:8px;border-radius:5px;background:var(--surface-2);margin-top:4px;overflow:hidden}.rbar i{display:block;height:100%;background:linear-gradient(90deg,#FF7A00,#FF5A3C);border-radius:5px}
 .rc{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.rc u{text-decoration:none;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
 .c-e{background:var(--bad-bg);color:var(--bad)}.c-s{background:var(--warn-bg);color:var(--warn)}.c-n{background:var(--info-bg);color:var(--info)}
+/* ---------- pre-alerta ---------- */
+.pre-st{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.pre-av{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--warn)}
+#preTexto{font-family:var(--f-mono);font-size:13px;line-height:1.5;white-space:pre-wrap}
+.pre-mapa{margin-top:12px}.pre-mapa canvas{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);display:block}
 /* ---------- lancamentos em tela cheia ---------- */
 .lc-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;align-items:start}
 .lc-col{display:flex;flex-direction:column;gap:12px;min-width:0}
@@ -278,10 +283,10 @@ var LS_PASS='mandalog-painel-senha-v1', LS_PROG='mandalog-programacao-v1', LS_TR
 var STATUS={OK:['ok','Vinculado'],SIMULADO:['sim','Simulação'],IGNORADO:['ign','Não alterado'],PENDENTE:['pend','Aguardando liberação'],ERRO:['err','Erro'],ENVIADO:['env','Enviado ao robô'],CONFLITO:['err','Conflito: aguarda sua decisão']};
 
 var PERFIS=['FIORINO','HR','VUC','3/4','TOCO','TRUCK','CARRETA','TRUCK LONG'];
-var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada',reentrega:'Reentrega'};
+var NOMES_TIPO={vincular:'Vincular',iniciar:'Iniciar rota',roteirizar:'Roteirização',impactar:'Rota impactada',reentrega:'Reentrega',prealerta:'Pré-alerta'};
 var ABA_NOME={SUMARE:'Café Sumaré',GRU:'Café GRU',SJC:'Café SJC'};
 function hojeISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,msg2:'',msg2Ok:false,msg3:'',msg3Ok:false,edata:isoMais(hojeISO(),1),rdata:hojeISO(),rperfil:'',busy:false,prog:progGet(),poll:null};
+var S={view:'gate',err:'',pass:'',acoes:[],enviados:[],msg:'',msgOk:false,msg2:'',msg2Ok:false,msg3:'',msg3Ok:false,pre:null,preTexto:'',edata:isoMais(hojeISO(),1),rdata:hojeISO(),rperfil:'',busy:false,prog:progGet(),poll:null};
 var root=document.getElementById('root');
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -849,9 +854,148 @@ function leNfs(txt){
     vistos[nf]=1;itens.push({nf:nf,senha:(m[2]||'').trim().slice(0,40)});});
   return {itens:itens,erros:erros};
 }
+/* ---------- pre-alerta dos motoristas (texto padrao + mapa) ---------- */
+function prealerta(off){
+  var R=S.pre&&S.pre.r,h='<section class="card"><h2>Pré-alerta</h2><p class="hint">Texto padrão para o grupo dos motoristas. Informe plano, data e horário e escolha a operação pelo botão (Café Sumaré, Café GRU ou Café SJC): o robô traz o restante da <b>planilha</b> (e do <b>GM7</b> quando a planilha não tiver) e monta a mensagem e o mapa da rota.</p>'+
+    '<form id="preForm"><div class="grid">'+
+    '<label>Nº do plano<input id="prPlano" class="mono" inputmode="numeric" placeholder="ex.: 6103319770" maxlength="40" required></label>'+
+    '<label>Data de saída<input id="prData" type="date" value="'+esc(S.prdata||hojeISO())+'" required></label>'+
+    '<label>Horário<input id="prHora" type="time" required></label>'+
+    '<label>Senha (opcional)<input id="prSenha" class="mono" placeholder="senha da rota" maxlength="40"></label>'+
+    '<label>Controle Nº (opcional)<input id="prCtl" class="mono" maxlength="30"></label>'+
+    '<label>Nº Pré-Ordem (opcional)<input id="prPre" class="mono" maxlength="30"></label></div>'+
+    '<div class="ops"><button class="btn" type="submit" data-aba="SUMARE"'+(S.pre&&S.pre.estado==='aguardando'?' disabled':off)+'>Café Sumaré</button><button class="btn" type="submit" data-aba="GRU"'+(S.pre&&S.pre.estado==='aguardando'?' disabled':off)+'>Café GRU</button><button class="btn" type="submit" data-aba="SJC"'+(S.pre&&S.pre.estado==='aguardando'?' disabled':off)+'>Café SJC</button></div></form>';
+  if(S.pre&&S.pre.msg)h+='<p class="msg'+(S.pre.estado==='erro'?' bad':(S.pre.estado==='pronto'?' ok':''))+'" role="status">'+esc(S.pre.msg)+'</p>';
+  if(R&&R.texto){var c=R.conferencia||{};
+    h+='<div class="sep"></div><h2 style="font-size:20px">Mensagem pronta</h2>'+
+      '<div class="pre-st"><span class="badge '+(c.planilha?'ok':'err')+'">Planilha: '+(c.planilha?'achou o plano':'não achou')+'</span> <span class="badge '+(c.gm7?'ok':'err')+'">GM7: '+(c.gm7?'rota encontrada':'sem rota')+'</span> '+
+      '<span class="badge '+(c.motorista?'ok':'err')+'">Motorista: '+esc(c.motorista||'não informado')+(c.fonte_motorista?' ('+esc(c.fonte_motorista)+')':'')+'</span> '+
+      '<span class="badge '+(c.placa?'ok':'err')+'">Placa: '+esc(c.placa||'não informada')+(c.fonte_placa?' ('+esc(c.fonte_placa)+')':'')+'</span></div>'+
+      ((R.passos&&R.passos.length)?'<ul class="pre-av">'+R.passos.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul>':'')+
+      '<label style="margin-top:8px">Texto (você pode ajustar antes de copiar)<textarea id="preTexto" rows="13" spellcheck="false">'+esc(S.preTexto||R.texto)+'</textarea></label>'+
+      '<div class="ops"><button type="button" class="btn" data-act="premapa" title="Copia a imagem do mapa e o texto juntos">⧉ Copiar mapa + texto</button><button type="button" class="btn ghost" data-act="precopia">Copiar só o texto</button><button type="button" class="btn ghost" data-act="prewa">Abrir WhatsApp Web</button></div>'+
+      (S.preFb?'<p class="msg '+(S.preFbOk?'ok':'bad')+'" role="status">'+esc(S.preFb)+'</p>':'')+
+      '<div id="preMapaSlot" class="pre-mapa"></div>';}
+  return h+'</section>';
+}
+function achaPre(){if(!S.pre||!S.pre.id)return null;for(var i=S.acoes.length-1;i>=0;i--){if(S.acoes[i].id===S.pre.id)return S.acoes[i];}return null;}
+function pararPre(){if(S.pre&&S.pre.timer){clearInterval(S.pre.timer);S.pre.timer=null;}}
+function pedirPrealerta(d){
+  if(!S.prog.quem||!S.prog.senha){S.pre={estado:'erro',msg:'Informe seu nome e a senha de programação (cartão Identificação).'};render();return;}
+  pararPre();var id=novoId();
+  S.pre={id:id,estado:'aguardando',msg:'Pedido enviado. O robô está lendo a planilha e o GM7 (cerca de 1 min)…',t0:Date.now(),r:null};S.preTexto='';S.prdata=d.data;render();
+  fetch(WORKER_URL.replace(/\/$/,'')+'/acao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({tipo:'prealerta',id:id,senha:S.prog.senha,quem:S.prog.quem},d))})
+    .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};});})
+    .then(function(x){
+      if(!(x.j&&x.j.ok)){S.pre={estado:'erro',msg:'Não enviado: '+((x.j&&x.j.erro)||('HTTP '+x.s))};render();return;}
+      S.pre.timer=setInterval(function(){
+        carrega();var r=achaPre();if(!S.pre)return;
+        if(r){pararPre();S.pre.r=r;S.preTexto=r.texto||'';S.pre.estado=(r.status==='OK'&&r.texto)?'pronto':'erro';S.pre.msg=(r.status==='OK'&&r.texto)?'Pré-alerta gerado: '+(r.motivo||''):'Não foi possível gerar: '+(r.motivo||'erro');S.preMapaCanvas=null;render();return;}
+        if(Date.now()-S.pre.t0>4*60000){pararPre();S.pre={estado:'erro',msg:'O robô não respondeu em 4 minutos. Tente de novo.'};render();}
+      },6000);})
+    .catch(function(){S.pre={estado:'erro',msg:'Não consegui falar com o endpoint.'};render();});
+}
+/* mapa da rota em PNG: zoom nas entregas, marcadores numerados e rotulos legiveis (cliente, cidade, bairro) */
+function distKm(a,b){var R=6371,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lng-a.lng)*r,x=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)*Math.sin(dn/2);return 2*R*Math.asin(Math.sqrt(x));}
+function cortaTxt(g,s,max){s=String(s||'');if(g.measureText(s).width<=max)return s;while(s.length>3&&g.measureText(s+'…').width>max)s=s.slice(0,-1);return s+'…';}
+function desenharMapa(m,plano,comTiles,cb,info){
+  info=info||{};
+  var W=1200,H=800,pad=110,stops=((m&&m.paradas)||[]).filter(function(p){return p.lat!=null&&p.lng!=null;}).map(function(p){return {lat:+p.lat,lng:+p.lng,n:p.n,nome:p.nome,cidade:p.cidade,bairro:p.bairro,endereco:p.endereco};});
+  if(!stops.length){cb(null);return;}
+  var og=(m.origem&&m.origem.lat!=null)?{lat:+m.origem.lat,lng:+m.origem.lng,nome:m.origem.nome}:null;
+  function px(lat,lng,z){var s=256*Math.pow(2,z),r=lat*Math.PI/180;return {x:(lng+180)/360*s,y:(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*s};}
+  var pts=stops.slice();
+  // o CD so entra no enquadramento se estiver perto; longe, o mapa fica nas entregas e o CD vira uma seta na borda
+  var cx0=stops.reduce(function(a,p){return a+p.lat;},0)/stops.length,cy0=stops.reduce(function(a,p){return a+p.lng;},0)/stops.length;
+  var spread=Math.max.apply(null,stops.map(function(p){return distKm({lat:cx0,lng:cy0},p);}));
+  var distOg=og?distKm({lat:cx0,lng:cy0},og):0,ogDentro=og&&distOg<=Math.max(8,spread*2.2);
+  if(ogDentro)pts.push(og);
+  var z=16;for(;z>3;z--){var a=pts.map(function(p){return px(p.lat,p.lng,z);}),xs=a.map(function(q){return q.x;}),ys=a.map(function(q){return q.y;});
+    if(Math.max.apply(null,xs)-Math.min.apply(null,xs)<=W-2*pad-140&&Math.max.apply(null,ys)-Math.min.apply(null,ys)<=H-2*pad-60)break;}
+  var A=pts.map(function(p){return px(p.lat,p.lng,z);}),minx=Math.min.apply(null,A.map(function(q){return q.x;})),maxx=Math.max.apply(null,A.map(function(q){return q.x;})),
+      miny=Math.min.apply(null,A.map(function(q){return q.y;})),maxy=Math.max.apply(null,A.map(function(q){return q.y;})),ox=(minx+maxx)/2-W/2,oy=(miny+maxy)/2-H/2+10;
+  var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');g.fillStyle='#e8e4dc';g.fillRect(0,0,W,H);
+  function xy(p){var q=px(p.lat,p.lng,z);return {x:q.x-ox,y:q.y-oy};}
+  function finalizar(){
+    // linha da rota na ordem das paradas (contorno branco + laranja)
+    var linha=(ogDentro?[og]:[]).concat(stops);
+    [['#ffffff',9],['#FF7A00',5]].forEach(function(e){g.strokeStyle=e[0];g.lineWidth=e[1];g.lineJoin='round';g.lineCap='round';g.beginPath();linha.forEach(function(p,i){var q=xy(p);if(i)g.lineTo(q.x,q.y);else g.moveTo(q.x,q.y);});g.stroke();});
+    var ocup=[];
+    function rotulo(x,y,t1,t2,lado){g.font='bold 22px sans-serif';var w1=Math.min(430,g.measureText(t1).width),w=w1;g.font='17px sans-serif';if(t2)w=Math.max(w,Math.min(430,g.measureText(t2).width));
+      var bw=w+22,bh=t2?54:36,bx=lado<0?x-30-bw:x+30,by=y-bh/2;
+      for(var k=0;k<14;k++){var bate=ocup.some(function(o){return bx<o.x+o.w+4&&bx+bw+4>o.x&&by<o.y+o.h+4&&by+bh+4>o.y;});if(!bate)break;by+=bh+6;}
+      by=Math.max(54,Math.min(H-bh-38,by));ocup.push({x:bx,y:by,w:bw,h:bh});
+      g.fillStyle='rgba(255,255,255,.96)';g.strokeStyle='#0A0A0A';g.lineWidth=2;g.beginPath();g.roundRect?g.roundRect(bx,by,bw,bh,8):g.rect(bx,by,bw,bh);g.fill();g.stroke();
+      g.fillStyle='#0A0A0A';g.textAlign='left';g.textBaseline='middle';g.font='bold 22px sans-serif';g.fillText(cortaTxt(g,t1,bw-20),bx+10,by+(t2?17:bh/2));
+      if(t2){g.fillStyle='#4a4a4a';g.font='17px sans-serif';g.fillText(cortaTxt(g,t2,bw-20),bx+10,by+38);}}
+    stops.forEach(function(p){var q=xy(p),lado=q.x>W-420?-1:1,t2=[p.cidade,p.bairro].filter(Boolean).join(' · ');if(stops.length===1&&p.endereco)t2=p.endereco+(t2?' · '+t2:'');
+      rotulo(q.x,q.y,String(p.nome||'Entrega'),t2,lado);});
+    stops.forEach(function(p){var q=xy(p);g.beginPath();g.fillStyle='#FF7A00';g.arc(q.x,q.y,24,0,6.283);g.fill();g.lineWidth=4;g.strokeStyle='#0A0A0A';g.stroke();g.fillStyle='#0A0A0A';g.font='bold 26px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(String(p.n),q.x,q.y+1);});
+    if(og){var qo=xy(og);
+      if(ogDentro){g.fillStyle='#0A0A0A';g.fillRect(qo.x-26,qo.y-26,52,52);g.fillStyle='#FF7A00';g.font='bold 22px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('CD',qo.x,qo.y+1);}
+      else{g.fillStyle='#0A0A0A';g.fillRect(16,H-84,420,40);g.fillStyle='#FF7A00';g.font='bold 20px sans-serif';g.textAlign='left';g.textBaseline='middle';
+        var dir=(og.lng<cy0?'◄ ':'')+(og.lat>cx0?'▲ ':'▼ ');g.fillText(dir+'CD de origem a '+Math.round(distOg)+' km desta rota',28,H-64);}}
+    // faixa do titulo
+    g.fillStyle='rgba(10,10,10,.92)';g.fillRect(0,0,W,52);g.fillStyle='#FF7A00';g.fillRect(0,52,W,4);g.textBaseline='middle';g.textAlign='left';
+    g.fillStyle='#fff';g.font='bold 26px sans-serif';g.fillText('Rota '+plano+' · '+stops.length+' entrega'+(stops.length>1?'s':''),18,27);
+    if(info.quando){g.textAlign='right';g.fillStyle='#FFB066';g.font='bold 22px sans-serif';g.fillText(info.quando,W-18,27);}
+    if(info.rodape){g.fillStyle='rgba(10,10,10,.92)';g.fillRect(0,H-34,W,34);g.fillStyle='#fff';g.font='18px sans-serif';g.textAlign='left';g.fillText(cortaTxt(g,info.rodape,W-330),18,H-17);}
+    g.fillStyle='rgba(255,255,255,.88)';g.fillRect(W-270,H-34,270,34);g.fillStyle='#333';g.font='13px sans-serif';g.textAlign='right';g.fillText('© OpenStreetMap · ordem das paradas',W-8,H-17);
+    cb(c);}
+  if(!comTiles){finalizar();return;}
+  var tx0=Math.floor(ox/256),tx1=Math.floor((ox+W)/256),ty0=Math.floor(oy/256),ty1=Math.floor((oy+H)/256),total=0,feitos=0,n=Math.pow(2,z),falhou=false;
+  for(var tx=tx0;tx<=tx1;tx++)for(var ty=ty0;ty<=ty1;ty++){if(ty<0||ty>=n)continue;total++;
+    (function(tx,ty){var im=new Image();im.crossOrigin='anonymous';im.onload=function(){g.drawImage(im,tx*256-ox,ty*256-oy);if(++feitos===total)finalizar();};
+      im.onerror=function(){falhou=true;if(++feitos===total)finalizar();};im.src='https://tile.openstreetmap.org/'+z+'/'+(((tx%n)+n)%n)+'/'+ty+'.png?r='+Date.now();})(tx,ty);}
+  if(!total)finalizar();
+}function montaMapaPre(){
+  var slot=document.getElementById('preMapaSlot'),R=S.pre&&S.pre.r;if(!slot||!R)return;
+  if(S.preMapaCanvas){slot.appendChild(S.preMapaCanvas);return;}
+  if(!(R.mapa&&R.mapa.paradas&&R.mapa.paradas.length)){slot.innerHTML='<p class="hint">Sem coordenadas das paradas no GM7: não há mapa para esta rota.</p>';return;}
+  slot.innerHTML='<p class="hint">Desenhando o mapa…</p>';
+  var id0=S.pre.id;
+  function desenha(){desenharMapa(R.mapa,R.plano,true,function(c){if(!S.pre||S.pre.id!==id0)return;var s=document.getElementById('preMapaSlot');if(!s)return;s.innerHTML='';if(!c){s.innerHTML='<p class="hint">Sem coordenadas para o mapa.</p>';return;}S.preMapaCanvas=c;s.appendChild(c);});}
+  var og=R.mapa.origem;
+  /* CD de SJC/Sumare: o robo manda so o endereco; o painel descobre as coordenadas (OpenStreetMap/Nominatim). Se falhar, o mapa sai sem o CD. */
+  if(og&&og.lat==null&&og.consulta){
+    var fim=false,tm=setTimeout(function(){if(!fim){fim=true;R.mapa.origem=null;desenha();}},6000);
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q='+encodeURIComponent(og.consulta)).then(function(r){return r.json();}).then(function(j){
+      if(fim)return;fim=true;clearTimeout(tm);
+      if(j&&j[0]){og.lat=+j[0].lat;og.lng=+j[0].lon;}else{R.mapa.origem=null;}
+      desenha();
+    }).catch(function(){if(fim)return;fim=true;clearTimeout(tm);R.mapa.origem=null;desenha();});
+  }else desenha();
+}/* copia o MAPA (imagem) e o TEXTO juntos para a area de transferencia: no WhatsApp Web/Desktop, Ctrl+V cola a imagem e o texto vai na legenda */
+function copiarMapaTexto(btn){
+  var te=document.getElementById('preTexto'),texto=te?te.value:'';
+  function fb(ok,msg){S.preFb=msg;S.preFbOk=ok;render();}
+  var msgOk='Mapa e texto copiados. Abra o grupo no WhatsApp e aperte Ctrl+V: a imagem entra e o texto vai na legenda. Se a legenda vier vazia, clique em "Copiar só o texto" e cole nela com Ctrl+V.';
+  if(!S.preMapaCanvas){copiar(texto,btn);fb(false,'Não há mapa para esta rota; copiei só o texto.');return;}
+  if(!(navigator.clipboard&&navigator.clipboard.write&&window.ClipboardItem)){copiar(texto,btn);fb(false,'Este navegador não permite copiar imagem. O texto foi copiado; para salvar o mapa, clique nele com o botão direito e escolha "Salvar imagem como".');return;}
+  function erro(e){return (e&&(e.name||'')+(e&&e.message?': '+e.message:''))||'erro desconhecido';}
+  // blob da imagem: promessa criada DENTRO do clique (mantem a permissao do navegador)
+  var pImg=new Promise(function(ok,no){try{S.preMapaCanvas.toBlob(function(b){b?ok(b):no(new Error('imagem vazia'));},'image/png');}catch(e){no(e);}});
+  var bTxt=new Blob([texto],{type:'text/plain'});
+  function soImagem(motivo){
+    navigator.clipboard.write([new ClipboardItem({'image/png':pImg})]).then(function(){
+      fb(true,'Mapa copiado (sem o texto: '+motivo+'). Cole no grupo com Ctrl+V e use "Copiar só o texto" para a legenda.');
+    },function(e2){
+      copiar(texto,btn);
+      fb(false,'Não consegui copiar a imagem ('+erro(e2)+'). O texto foi copiado. Para o mapa: clique nele com o botão direito > "Copiar imagem".');
+    });
+  }
+  try{
+    navigator.clipboard.write([new ClipboardItem({'image/png':pImg,'text/plain':bTxt})]).then(function(){fb(true,msgOk);},function(e){soImagem(erro(e));});
+  }catch(e){soImagem(erro(e));}
+}function baixarMapaPre(){
+  var R=S.pre&&S.pre.r;if(!R||!S.preMapaCanvas)return;
+  function salvar(canvas){canvas.toBlob(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Pre-alerta-'+R.plano+'-mapa.png';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},500);},'image/png');}
+  try{salvar(S.preMapaCanvas);}catch(e){desenharMapa(R.mapa,R.plano,false,function(c){if(c)salvar(c);});}
+}
 function render(){
   var foco=document.activeElement&&document.activeElement.id,keep={};
-  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw','ePlano','eData','eMot','ePlaca','ePerfil','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  ['pPlano','pMot','pPlaca','sPlano','rPlano','rData','rPerfil','iPlano','pQuem','pSenha','pw','ePlano','eData','eMot','ePlaca','ePerfil','eNfs','prPlano','prData','prHora','prSenha','prCtl','prPre','preTexto'].forEach(function(id){var e=document.getElementById(id);if(e)keep[id]=e.value;});
+  if(keep.preTexto!==undefined)S.preTexto=keep.preTexto;
   if(keep.eData)S.edata=keep.eData;if(keep.ePerfil!==undefined)S.eperfil=keep.ePerfil;
   if(keep.rData)S.rdata=keep.rData;if(keep.rPerfil!==undefined)S.rperfil=keep.rPerfil;
   if(S.view==='gate'){
@@ -892,15 +1036,16 @@ function render(){
       '<div><button class="btn ghost" type="submit"'+off+'>Marcar NÃO EMITIR</button></div></div></form>'+
       (S.msg2?'<p class="msg'+(S.msg2Ok?' ok':(S.busy?'':' bad'))+'" role="status">'+esc(S.msg2)+'</p>':'')+'</section>'+
     reentregas(off)+
-    '</div><div class="lc-col">'+andamento()+'</div></div>';
+    '</div><div class="lc-col">'+prealerta(off)+andamento()+'</div></div>';
   var corpo=S.aba==='ind'?indicadores():(S.aba==='pend'?pendencias():lanc);
   document.body.classList.add('cc');
   if(S.anim){root.classList.add('anim');S.anim=false;}else root.classList.remove('anim');
   root.innerHTML=header(vivo()+'<button class="hbtn" data-act="sair">Sair</button>')+bannerSLA()+abas()+corpo+
     '<footer>Os dados dos planos ficam no GM7. Este painel só envia os pedidos e mostra o resultado.</footer>'+modalConflito()+modalRel();
   if(S.aba==='pend')atualizaMapa();
+  if(S.aba==='lanc')montaMapaPre();
   Object.keys(keep).forEach(function(id){var e=document.getElementById(id);if(e&&keep[id]!=='')e.value=keep[id];});
-  if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano','ePlano','eMot','ePlaca','eNfs'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
+  if(S.limpar){['pPlano','pMot','pPlaca','sPlano','rPlano','iPlano','ePlano','eMot','ePlaca','eNfs','prPlano','prHora','prSenha','prCtl','prPre'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});S.limpar=false;}
   if(foco){var f=document.getElementById(foco);if(f&&f.focus)f.focus();}
 }
 
@@ -917,6 +1062,9 @@ root.addEventListener('click',function(ev){var b=ev.target.closest('[data-act]')
     S.rel.msg='';render();return;}
   if(ac==='relpdf'){relGerar('pdf');return;}
   if(ac==='relxls'){relGerar('xls');return;}
+  if(ac==='precopia'){var te=document.getElementById('preTexto');copiar(te?te.value:'',b);return;}
+  if(ac==='prewa'){window.open('https://web.whatsapp.com/','_blank','noopener');return;}
+  if(ac==='premapa'){copiarMapaTexto(b);return;}
   if(ac==='copia'){copiar(b.getAttribute('data-v')||'',b);return;}
   if(ac==='atualizar'){pedirAtualizacao();return;}
   if(ac==='sel'){seleciona(b.getAttribute('data-plano'),true);return;}
@@ -951,6 +1099,15 @@ root.addEventListener('submit',function(ev){
     S.rdata=dt;S.rperfil=pf;
     if(!confirm('Incluir o plano '+p3+' na aba '+ABA_NOME[aba]+' da planilha, com data '+dt.split('-').reverse().join('/')+' e perfil '+pf+'?'))return;
     enviar('roteirizar',{plano:p3,aba:aba,data:dt,perfil:pf},true);return;}
+  if(id==='preForm'){
+    var pp=document.getElementById('prPlano').value.trim(),pd=document.getElementById('prData').value,ph=document.getElementById('prHora').value,ps=document.getElementById('prSenha').value.trim();
+    var abaP=ev.submitter&&ev.submitter.getAttribute('data-aba');
+    function ep(m){S.pre={estado:'erro',msg:m};render();}
+    if(!abaP)return ep('Escolha a operação pelos botões Café Sumaré, Café GRU ou Café SJC.');
+    if(!/^[A-Za-z0-9._\- ]{3,40}$/.test(pp))return ep('Número do plano inválido.');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(pd))return ep('Escolha a data de saída.');
+    if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(ph))return ep('Informe o horário (HH:MM).');
+    pedirPrealerta({plano:pp,aba:abaP,data:pd,hora:ph,senhaRota:ps,controle:document.getElementById('prCtl').value.trim(),preordem:document.getElementById('prPre').value.trim()});return;}
   if(id==='reentForm'){
     var aba5=ev.submitter&&ev.submitter.getAttribute('data-aba');
     var pl5=document.getElementById('ePlano').value.trim(),dt5=document.getElementById('eData').value,mo5=document.getElementById('eMot').value.trim(),pc5=document.getElementById('ePlaca').value.trim().toUpperCase();
